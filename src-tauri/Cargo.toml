@@ -1,0 +1,23 @@
+[package]
+name = "dailydo"
+version = "1.0.0"
+description = "DailyDo - 每日待办记事本"
+authors = ["DailyDo"]
+license = ""
+repository = ""
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "1", features = [] }
+
+[dependencies]
+tauri = { version = "1", features = [ "notification-all", "shell-open", "dialog-open", "dialog-save", "fs-read-file", "fs-write-file", "window-all", "notification"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rusqlite = { version = "0.31", features = ["bundled"] }
+chrono = "0.4"
+uuid = { version = "1", features = ["v4"] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

@@ -1,0 +1,473 @@
+import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
+import * as db from '../utils/db'
+
+export const useAppStore = defineStore('app', () => {
+  // Theme
+  const theme = ref('light')
+
+  // Tags
+  const tags = ref([])
+
+  // Todos for current date
+  const currentTodos = ref([])
+  const currentDate = ref(formatDate(new Date()))
+
+  // Calendar data
+  const calendarCounts = ref({})
+  const calendarDays = ref({}) // { 'YYYY-MM-DD': 'workday'|'rest' } — only custom overrides
+
+  // Trash
+  const trashTodos = ref([])
+
+  // Incomplete todos (across all dates)
+  const incompleteTodos = ref([])
+
+  // Mini mode
+  const isMiniMode = ref(false)
+  const pendingQuickAdd = ref(null)   // { title, priority, tagIds } from mini mode expand
+  const pendingEditTodo = ref(null)   // todo object from mini mode edit
+
+  // Background image
+  const backgroundImage = ref('')
+
+  // Sidebar config: ordered array of { id, visible }
+  const defaultSidebarModules = ['today', 'calendar', 'analytics', 'tags', 'recurrences', 'templates', 'attachments', 'trash', 'settings']
+  const sidebarConfig = ref(defaultSidebarModules.map(id => ({ id, visible: true })))
+
+  // Stats
+  const overviewStats = ref({
+    today_total: 0,
+    today_completed: 0,
+    week_total: 0,
+    week_completed: 0,
+    pending_count: 0,
+    streak_days: 0,
+    trash_count: 0,
+  })
+
+  // Computed
+  const pendingTodos = computed(() =>
+    currentTodos.value.filter((t) => t.status !== 'done')
+  )
+  const doneTodos = computed(() =>
+    currentTodos.value.filter((t) => t.status === 'done')
+  )
+
+  // ─── Theme ──────────────────────────────────────────
+  function applyTheme() {
+    if (theme.value === 'dark') {
+      document.documentElement.classList.add('dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+    }
+  }
+
+  async function toggleTheme() {
+    theme.value = theme.value === 'dark' ? 'light' : 'dark'
+    applyTheme()
+    await db.setSetting('theme', theme.value)
+  }
+
+  async function loadSettings() {
+    const t = await db.getSetting('theme')
+    if (t) theme.value = JSON.parse(t)
+    const bg = await db.getSetting('background_image')
+    if (bg) backgroundImage.value = JSON.parse(bg)
+    await loadSidebarConfig()
+  }
+
+  // ─── Sidebar Config ─────────────────────────────────
+  async function loadSidebarConfig() {
+    const raw = await db.getSetting('sidebar_config')
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          sidebarConfig.value = parsed
+        }
+      } catch (e) { /* use default */ }
+    }
+  }
+
+  async function saveSidebarConfig(config) {
+    sidebarConfig.value = config
+    await db.setSetting('sidebar_config', JSON.stringify(config))
+  }
+
+  // ─── Tags ───────────────────────────────────────────
+  async function loadTags() {
+    tags.value = await db.getAllTags()
+  }
+
+  async function addTag(tag) {
+    const created = await db.createTag(tag)
+    await loadTags()
+    return created
+  }
+
+  async function editTag(tag) {
+    await db.updateTag(tag)
+    await loadTags()
+  }
+
+  async function removeTag(id) {
+    await db.deleteTag(id)
+    await loadTags()
+  }
+
+  // ─── Todos ──────────────────────────────────────────
+  async function loadTodosForDate(date) {
+    currentDate.value = date
+    currentTodos.value = await db.getTodosByDate(date)
+    // Load tags and steps for each todo
+    for (const todo of currentTodos.value) {
+      todo.tags = await db.getTodoTags(todo.id)
+      todo.steps = await db.getStepsByTodoId(todo.id)
+    }
+  }
+
+  async function addTodo(todo) {
+    const created = await db.createTodo(todo)
+    created.tags = []
+    if (todo.tagIds && todo.tagIds.length > 0) {
+      await db.setTodoTags(created.id, todo.tagIds)
+      created.tags = await db.getTodoTags(created.id)
+    }
+    // Save steps if provided
+    if (todo.steps && todo.steps.length > 0) {
+      created.steps = await db.saveTodoSteps(created.id, todo.steps)
+    } else {
+      created.steps = []
+    }
+    // Handle recurrence
+    if (todo.recurrence_type && todo.recurrence_type !== 'none') {
+      created.recurrence_type = todo.recurrence_type
+      created.recurrence_config = todo.recurrence_config
+    }
+    await loadTodosForDate(currentDate.value)
+    return created
+  }
+
+  async function updateTodo(todo) {
+    const oldStatus = currentTodos.value.find((t) => t.id === todo.id)?.status
+    await db.updateTodo(todo)
+    // BUG FIX: Always update tags when editing a todo
+    if (todo.tagIds) {
+      await db.setTodoTags(todo.id, todo.tagIds)
+    }
+    // Save steps if provided (always overwrite)
+    if (todo.steps !== undefined) {
+      await db.saveTodoSteps(todo.id, todo.steps || [])
+    }
+    // Handle recurrence: if status changed to done and it's recurring
+    if (
+      todo.status === 'done' &&
+      oldStatus !== 'done' &&
+      todo.recurrence_type &&
+      todo.recurrence_type !== 'none'
+    ) {
+      await createNextRecurrence(todo)
+    }
+    await loadTodosForDate(currentDate.value)
+  }
+
+  async function removeTodo(id) {
+    // Soft delete: move to trash
+    await db.deleteTodo(id)
+    await loadTodosForDate(currentDate.value)
+    await loadOverviewStats()
+  }
+
+  async function toggleTodoStatus(todo) {
+    const nextStatus =
+      todo.status === 'pending'
+        ? 'in_progress'
+        : todo.status === 'in_progress'
+        ? 'done'
+        : 'pending'
+    await updateTodo({ ...todo, status: nextStatus })
+  }
+
+  // ─── Steps ─────────────────────────────────────────
+  async function toggleStep(stepId) {
+    const result = await db.toggleStepCompleted(stepId)
+    // Reload todos to reflect status changes (auto-complete)
+    await loadTodosForDate(currentDate.value)
+    await loadIncompleteTodos()
+    await loadOverviewStats()
+    return result
+  }
+
+  async function loadIncompleteTodos() {
+    incompleteTodos.value = await db.getIncompleteTodos()
+    for (const todo of incompleteTodos.value) {
+      todo.tags = await db.getTodoTags(todo.id)
+      todo.steps = await db.getStepsByTodoId(todo.id)
+    }
+  }
+
+  async function createNextRecurrence(todo) {
+    // Check if recurrence is enabled for this group
+    if (todo.recurrence_enabled === false) return
+
+    const config = typeof todo.recurrence_config === 'string'
+      ? JSON.parse(todo.recurrence_config || '{}')
+      : (todo.recurrence_config || {})
+    const currentDateObj = new Date(todo.todo_date)
+    let nextDate = new Date(currentDateObj)
+
+    switch (todo.recurrence_type) {
+      case 'daily':
+        nextDate.setDate(nextDate.getDate() + 1)
+        break
+      case 'workday': {
+        nextDate.setDate(nextDate.getDate() + 1)
+        // Skip non-workdays using custom calendar
+        while (!(await db.isWorkday(formatDate(nextDate)))) {
+          nextDate.setDate(nextDate.getDate() + 1)
+        }
+        break
+      }
+      case 'weekly': {
+        nextDate.setDate(nextDate.getDate() + 7)
+        break
+      }
+      case 'monthly':
+        nextDate.setMonth(nextDate.getMonth() + 1)
+        break
+      case 'yearly':
+        nextDate.setFullYear(nextDate.getFullYear() + 1)
+        break
+    }
+
+    const nextDateStr = formatDate(nextDate)
+    const groupId = todo.recurrence_group_id || `rec_${Date.now()}`
+
+    // IMPORTANT: Update the original todo to have the group_id
+    // This ensures the original is linked to the group and can be toggled/deleted
+    if (!todo.recurrence_group_id) {
+      await db.updateTodo({
+        ...todo,
+        recurrence_group_id: groupId,
+      })
+    }
+
+    // Deduplication: check if a todo with same title+date+group already exists
+    const existingTodos = await db.getTodosByDate(nextDateStr)
+    const duplicate = existingTodos.find(
+      (t) =>
+        t.title === todo.title &&
+        t.recurrence_group_id === groupId &&
+        t.deleted_at == null
+    )
+    if (duplicate) {
+      // Already exists, skip creation but still copy tags if needed
+      if (todo.tags && todo.tags.length > 0) {
+        const existingTags = await db.getTodoTags(duplicate.id)
+        const existingTagIds = existingTags.map((t) => t.id)
+        const newTagIds = todo.tags.map((t) => t.id).filter((id) => !existingTagIds.includes(id))
+        if (newTagIds.length > 0) {
+          await db.setTodoTags(duplicate.id, [...existingTagIds, ...newTagIds])
+        }
+      }
+      // Copy steps to duplicate if it doesn't have any yet
+      if (todo.steps && todo.steps.length > 0) {
+        const existingSteps = await db.getStepsByTodoId(duplicate.id)
+        if (existingSteps.length === 0) {
+          const newSteps = todo.steps.map((s) => ({
+            title: s.title,
+            completed: false,
+            sort_order: s.sort_order || 0,
+          }))
+          await db.saveTodoSteps(duplicate.id, newSteps)
+        }
+      }
+      return
+    }
+
+    // Create the next occurrence
+    const created = await db.createTodo({
+      title: todo.title,
+      notes: todo.notes || '',
+      status: 'pending',
+      priority: todo.priority || 'medium',
+      due_date: todo.due_date || null,
+      todo_date: nextDateStr,
+      recurrence_type: todo.recurrence_type,
+      recurrence_config: JSON.stringify(config),
+      recurrence_group_id: groupId,
+      recurrence_enabled: todo.recurrence_enabled !== false,
+    })
+
+    // Copy tags
+    if (todo.tags && todo.tags.length > 0) {
+      const tagIds = todo.tags.map((t) => t.id)
+      await db.setTodoTags(created.id, tagIds)
+    }
+
+    // Copy steps (reset completed to false for the new occurrence)
+    if (todo.steps && todo.steps.length > 0) {
+      const newSteps = todo.steps.map((s) => ({
+        title: s.title,
+        completed: false,
+        sort_order: s.sort_order || 0,
+      }))
+      await db.saveTodoSteps(created.id, newSteps)
+    }
+  }
+
+  // ─── Trash ──────────────────────────────────────────
+  async function loadTrash() {
+    trashTodos.value = await db.getTrashTodos()
+    for (const todo of trashTodos.value) {
+      todo.tags = await db.getTodoTags(todo.id)
+    }
+  }
+
+  async function restoreFromTrash(id) {
+    await db.restoreTodo(id)
+    await loadTrash()
+    await loadOverviewStats()
+    await loadTodosForDate(currentDate.value)
+  }
+
+  async function permanentDelete(id) {
+    await db.permanentDeleteTodo(id)
+    await loadTrash()
+    await loadOverviewStats()
+  }
+
+  async function emptyTrash() {
+    await db.clearTrash()
+    await loadTrash()
+    await loadOverviewStats()
+  }
+
+  // ─── Calendar ───────────────────────────────────────
+  async function loadCalendarCounts(year, month) {
+    const startDate = `${year}-${String(month).padStart(2, '0')}-01`
+    const lastDay = new Date(year, month, 0).getDate()
+    const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+    const counts = await db.getDailyCounts(startDate, endDate)
+    const map = {}
+    counts.forEach((c) => {
+      map[c.date] = { total: c.total, completed: c.completed }
+    })
+    calendarCounts.value = map
+    // Also load custom day types for the same range
+    await loadCalendarDays(year, month)
+  }
+
+  async function loadCalendarDays(year, month) {
+    const startDate = `${year}-${String(month).padStart(2, '0')}-01`
+    const lastDay = new Date(year, month, 0).getDate()
+    const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+    const days = await db.getCalendarDays(startDate, endDate)
+    const map = {}
+    days.forEach((d) => {
+      map[d.date] = d.day_type
+    })
+    calendarDays.value = map
+  }
+
+  // Get effective day type: custom override or default (Mon-Fri=workday, Sat-Sun=rest)
+  function getDayType(dateStr) {
+    if (calendarDays.value[dateStr]) {
+      return calendarDays.value[dateStr]
+    }
+    const d = new Date(dateStr)
+    const day = d.getDay() // 0=Sun, 6=Sat
+    return day === 0 || day === 6 ? 'rest' : 'workday'
+  }
+
+  async function toggleDayType(dateStr) {
+    const current = getDayType(dateStr)
+    const newType = current === 'workday' ? 'rest' : 'workday'
+    await db.setDayType(dateStr, newType)
+    calendarDays.value[dateStr] = newType
+  }
+
+  // ─── Stats ──────────────────────────────────────────
+  async function loadOverviewStats() {
+    overviewStats.value = await db.getOverviewStats()
+  }
+
+  async function getTagDistribution(startDate, endDate) {
+    return await db.getTagDistribution(startDate, endDate)
+  }
+
+  async function getCompletionTrend(startDate, endDate) {
+    return await db.getCompletionTrend(startDate, endDate)
+  }
+
+  async function getPriorityDistribution(startDate, endDate) {
+    return await db.getPriorityDistribution(startDate, endDate)
+  }
+
+  // ─── Background ─────────────────────────────────────
+  async function setBackgroundImage(path) {
+    backgroundImage.value = path
+    await db.setSetting('background_image', JSON.stringify(path))
+  }
+
+  async function clearBackgroundImage() {
+    backgroundImage.value = ''
+    await db.setSetting('background_image', '""')
+  }
+
+  return {
+    theme,
+    tags,
+    currentTodos,
+    currentDate,
+    calendarCounts,
+    calendarDays,
+    overviewStats,
+    trashTodos,
+    incompleteTodos,
+    isMiniMode,
+    pendingQuickAdd,
+    pendingEditTodo,
+    backgroundImage,
+    sidebarConfig,
+    pendingTodos,
+    doneTodos,
+    applyTheme,
+    toggleTheme,
+    loadSettings,
+    loadTags,
+    addTag,
+    editTag,
+    removeTag,
+    loadTodosForDate,
+    addTodo,
+    updateTodo,
+    removeTodo,
+    toggleTodoStatus,
+    toggleStep,
+    loadIncompleteTodos,
+    loadTrash,
+    restoreFromTrash,
+    permanentDelete,
+    emptyTrash,
+    loadCalendarCounts,
+    loadCalendarDays,
+    getDayType,
+    toggleDayType,
+    loadOverviewStats,
+    getTagDistribution,
+    getCompletionTrend,
+    getPriorityDistribution,
+    setBackgroundImage,
+    clearBackgroundImage,
+    saveSidebarConfig,
+  }
+})
+
+function formatDate(d) {
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}

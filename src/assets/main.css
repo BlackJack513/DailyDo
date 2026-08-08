@@ -1,0 +1,134 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-surface text-content transition-colors duration-200;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  }
+
+  .dark body {
+    @apply bg-gray-900 text-gray-100;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-primary hover:bg-primary-hover text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-150;
+  }
+
+  .btn-secondary {
+    @apply bg-surface-tertiary hover:bg-border text-content-secondary px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-150;
+  }
+
+  .dark .btn-secondary {
+    @apply bg-gray-700 hover:bg-gray-600 text-gray-300;
+  }
+
+  .btn-danger {
+    @apply bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-150;
+  }
+
+  .input-field {
+    @apply w-full bg-surface-secondary border border-border rounded-lg px-3 py-2 text-sm text-content placeholder-content-tertiary focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all duration-150;
+  }
+
+  .dark .input-field {
+    @apply bg-gray-800 border-gray-700 text-gray-100 placeholder-gray-500;
+  }
+
+  .card {
+    @apply bg-surface border border-border rounded-xl p-4 transition-colors duration-200;
+  }
+
+  .dark .card {
+    @apply bg-gray-800 border-gray-700;
+  }
+
+  .sidebar-item {
+    @apply flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-content-secondary hover:bg-surface-tertiary hover:text-content transition-colors duration-150 cursor-pointer;
+  }
+
+  .dark .sidebar-item {
+    @apply text-gray-400 hover:bg-gray-800 hover:text-gray-200;
+  }
+
+  .sidebar-item.active {
+    @apply bg-primary-light text-primary;
+  }
+
+  .dark .sidebar-item.active {
+    @apply bg-indigo-500/20 text-indigo-400;
+  }
+
+  .tag-badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .status-dot {
+    @apply w-2.5 h-2.5 rounded-full flex-shrink-0;
+  }
+}
+
+/* Quill editor dark mode overrides */
+.dark .ql-toolbar {
+  @apply border-gray-700 bg-gray-800;
+}
+.dark .ql-container {
+  @apply border-gray-700 bg-gray-800;
+}
+.dark .ql-editor {
+  @apply text-gray-100;
+}
+.dark .ql-editor.ql-blank::before {
+  @apply text-gray-500 not-italic;
+}
+.dark .ql-snow .ql-stroke {
+  @apply stroke-gray-400;
+}
+.dark .ql-snow .ql-fill {
+  @apply fill-gray-400;
+}
+.dark .ql-snow .ql-picker-label {
+  @apply text-gray-400;
+}
+.dark .ql-snow .ql-picker-options {
+  @apply bg-gray-800 border-gray-700;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-border rounded-full;
+}
+.dark ::-webkit-scrollbar-thumb {
+  @apply bg-gray-700;
+}
+
+/* Background image support */
+.app-wrapper {
+  background-color: theme('colors.surface.DEFAULT', #f8f9fa);
+}
+.dark .app-wrapper {
+  background-color: theme('colors.gray.900', #111827);
+}
+
+/* Mini mode adjustments */
+.mini-mode .sidebar-item span {
+  font-size: 0.75rem;
+}
+
+/* Attachment indicator animation */
+@keyframes attach-pulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+.attachment-indicator {
+  animation: attach-pulse 2s ease-in-out infinite;
+}
