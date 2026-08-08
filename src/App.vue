@@ -64,7 +64,11 @@ async function checkReminders() {
 }
 
 onMounted(async () => {
-  await store.loadSettings()
+  try {
+    await store.loadSettings()
+  } catch (e) {
+    console.error('Failed to load settings:', e)
+  }
   store.applyTheme()
   // Check reminders immediately, then every 30 seconds
   checkReminders()

@@ -159,6 +159,11 @@ const moduleMeta = {
     color: '#f97316',
     icon: { render: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13' })]) },
   },
+  payday: {
+    label: '发薪倒计时',
+    color: '#f59e0b',
+    icon: { render: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z' })]) },
+  },
   trash: {
     label: '回收站',
     color: '#ef4444',
@@ -189,8 +194,19 @@ function toggleVisibility(index) {
 }
 
 function resetDefault() {
-  const defaults = ['today', 'calendar', 'analytics', 'tags', 'recurrences', 'templates', 'attachments', 'trash', 'settings']
-  localConfig.value = defaults.map(id => ({ id, visible: true }))
+  const defaults = [
+    { id: 'today', visible: true },
+    { id: 'calendar', visible: true },
+    { id: 'analytics', visible: true },
+    { id: 'tags', visible: true },
+    { id: 'recurrences', visible: true },
+    { id: 'templates', visible: true },
+    { id: 'attachments', visible: true },
+    { id: 'payday', visible: false },
+    { id: 'trash', visible: true },
+    { id: 'settings', visible: true },
+  ]
+  localConfig.value = defaults.map(item => ({ ...item }))
 }
 
 function handleClose() {
@@ -198,9 +214,14 @@ function handleClose() {
 }
 
 async function handleSave() {
-  await store.saveSidebarConfig(localConfig.value.map(item => ({ ...item })))
-  emit('save')
-  emit('close')
+  try {
+    await store.saveSidebarConfig(localConfig.value.map(item => ({ ...item })))
+    emit('save')
+    emit('close')
+  } catch (e) {
+    console.error('Save sidebar config failed:', e)
+    alert('保存侧边栏设置失败，请重试')
+  }
 }
 
 // ─── Native mouse drag-to-reorder ─────────────────────

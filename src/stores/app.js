@@ -31,9 +31,23 @@ export const useAppStore = defineStore('app', () => {
   // Background image
   const backgroundImage = ref('')
 
+  // Settings loaded flag
+  const settingsLoaded = ref(false)
+
   // Sidebar config: ordered array of { id, visible }
-  const defaultSidebarModules = ['today', 'calendar', 'analytics', 'tags', 'recurrences', 'templates', 'attachments', 'trash', 'settings']
-  const sidebarConfig = ref(defaultSidebarModules.map(id => ({ id, visible: true })))
+  const defaultSidebarModules = [
+    { id: 'today', visible: true },
+    { id: 'calendar', visible: true },
+    { id: 'analytics', visible: true },
+    { id: 'tags', visible: true },
+    { id: 'recurrences', visible: true },
+    { id: 'templates', visible: true },
+    { id: 'attachments', visible: true },
+    { id: 'payday', visible: false },
+    { id: 'trash', visible: true },
+    { id: 'settings', visible: true },
+  ]
+  const sidebarConfig = ref(defaultSidebarModules.map(item => ({ ...item })))
 
   // Stats
   const overviewStats = ref({
@@ -70,29 +84,67 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function loadSettings() {
-    const t = await db.getSetting('theme')
-    if (t) theme.value = JSON.parse(t)
-    const bg = await db.getSetting('background_image')
-    if (bg) backgroundImage.value = JSON.parse(bg)
+    // Load each setting independently — one failure must not block others
+    try {
+      const t = await db.getSetting('theme')
+      if (t) theme.value = JSON.parse(t)
+    } catch (e) {
+      console.error('Failed to load theme:', e)
+    }
+
+    try {
+      const bg = await db.getSetting('background_image')
+      if (bg) backgroundImage.value = JSON.parse(bg)
+    } catch (e) {
+      console.error('Failed to load background_image:', e)
+    }
+
     await loadSidebarConfig()
+    settingsLoaded.value = true
   }
 
   // ─── Sidebar Config ─────────────────────────────────
   async function loadSidebarConfig() {
-    const raw = await db.getSetting('sidebar_config')
-    if (raw) {
-      try {
+    try {
+      const raw = await db.getSetting('sidebar_config')
+      if (raw) {
         const parsed = JSON.parse(raw)
         if (Array.isArray(parsed) && parsed.length > 0) {
-          sidebarConfig.value = parsed
+          // Validate items have { id, visible } shape
+          const valid = parsed.every(item => item && typeof item.id === 'string' && typeof item.visible === 'boolean')
+          if (valid) {
+            // Merge: add any default modules missing from saved config (e.g. new modules)
+            const existingIds = new Set(parsed.map(item => item.id))
+            const merged = [...parsed]
+            for (const def of defaultSidebarModules) {
+              if (!existingIds.has(def.id)) {
+                merged.push({ id: def.id, visible: def.visible })
+              }
+            }
+            sidebarConfig.value = merged
+            return
+          } else {
+            console.warn('Sidebar config has invalid format, resetting to defaults')
+          }
         }
-      } catch (e) { /* use default */ }
+      }
+      // No saved config or invalid — use defaults and persist them
+      sidebarConfig.value = defaultSidebarModules.map(item => ({ ...item }))
+      await db.setSetting('sidebar_config', JSON.stringify(sidebarConfig.value))
+    } catch (e) {
+      console.error('Failed to load sidebar config:', e)
+      // Keep defaults on error
     }
   }
 
   async function saveSidebarConfig(config) {
     sidebarConfig.value = config
-    await db.setSetting('sidebar_config', JSON.stringify(config))
+    try {
+      await db.setSetting('sidebar_config', JSON.stringify(config))
+    } catch (e) {
+      console.error('Failed to save sidebar config:', e)
+      throw e
+    }
   }
 
   // ─── Tags ───────────────────────────────────────────
@@ -498,6 +550,7 @@ export const useAppStore = defineStore('app', () => {
     pendingEditTodo,
     backgroundImage,
     sidebarConfig,
+    settingsLoaded,
     pendingTodos,
     doneTodos,
     applyTheme,

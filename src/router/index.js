@@ -10,6 +10,7 @@ const routes = [
   { path: '/recurrences', name: 'recurrences', component: () => import('../views/RecurrencesView.vue') },
   { path: '/templates', name: 'templates', component: () => import('../views/TemplatesView.vue') },
   { path: '/attachments', name: 'attachments', component: () => import('../views/AttachmentsView.vue') },
+  { path: '/payday', name: 'payday', component: () => import('../views/PaydayView.vue') },
   { path: '/trash', name: 'trash', component: () => import('../views/TrashView.vue') },
   { path: '/settings', name: 'settings', component: () => import('../views/SettingsView.vue') },
 ]

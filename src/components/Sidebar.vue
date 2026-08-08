@@ -11,7 +11,7 @@
     </div>
 
     <!-- Navigation -->
-    <nav class="flex-1 px-3 space-y-1 overflow-y-auto">
+    <nav v-if="store.settingsLoaded" class="flex-1 px-3 space-y-1 overflow-y-auto">
       <router-link
         v-for="item in navItems"
         :key="item.path"
@@ -23,6 +23,10 @@
         <span>{{ item.label }}</span>
         <span v-if="item.badge && item.badge > 0" class="ml-auto text-xs bg-red-500 text-white rounded-full px-1.5 py-0.5 min-w-[20px] text-center">{{ item.badge }}</span>
       </router-link>
+    </nav>
+    <nav v-else class="flex-1 px-3 space-y-1 overflow-y-auto">
+      <!-- Skeleton loading -->
+      <div v-for="i in 6" :key="i" class="h-9 rounded-lg bg-surface-tertiary dark:bg-gray-700 animate-pulse"></div>
     </nav>
 
     <!-- Bottom actions -->
@@ -157,6 +161,14 @@ const SettingsIcon = {
   },
 }
 
+const PaydayIcon = {
+  render() {
+    return h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
+      h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z' }),
+    ])
+  },
+}
+
 const allNavItems = {
   today: { path: '/today', label: '待办列表', icon: TodayIcon, id: 'today' },
   calendar: { path: '/calendar', label: '日历视图', icon: CalendarIcon, id: 'calendar' },
@@ -165,6 +177,7 @@ const allNavItems = {
   recurrences: { path: '/recurrences', label: '周期任务', icon: RecurrenceIcon, id: 'recurrences' },
   templates: { path: '/templates', label: '待办模板', icon: TemplateIcon, id: 'templates' },
   attachments: { path: '/attachments', label: '附件管理', icon: AttachmentIcon, id: 'attachments' },
+  payday: { path: '/payday', label: '发薪倒计时', icon: PaydayIcon, id: 'payday' },
   trash: { path: '/trash', label: '回收站', icon: TrashIcon, id: 'trash', badge: store.overviewStats.trash_count },
   settings: { path: '/settings', label: '设置', icon: SettingsIcon, id: 'settings' },
 }
