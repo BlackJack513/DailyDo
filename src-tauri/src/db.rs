@@ -71,6 +71,7 @@ pub fn init_db(conn: &Connection) -> Result<()> {
             recurrence_type TEXT NOT NULL DEFAULT 'none',
             recurrence_config TEXT DEFAULT '{}',
             tag_ids TEXT DEFAULT '[]',
+            locked_fields TEXT DEFAULT '[]',
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
         );
@@ -115,6 +116,17 @@ pub fn init_db(conn: &Connection) -> Result<()> {
     }
     if !columns.contains(&"recurrence_enabled".to_string()) {
         conn.execute_batch("ALTER TABLE todos ADD COLUMN recurrence_enabled INTEGER NOT NULL DEFAULT 1;")?;
+    }
+
+    // Check todo_templates columns for migration
+    let tpl_columns: Vec<String> = conn
+        .prepare("PRAGMA table_info(todo_templates)")?
+        .query_map([], |row| row.get::<_, String>(1))?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    if !tpl_columns.contains(&"locked_fields".to_string()) {
+        conn.execute_batch("ALTER TABLE todo_templates ADD COLUMN locked_fields TEXT DEFAULT '[]';")?;
     }
 
     // Insert preset tags if they don't exist

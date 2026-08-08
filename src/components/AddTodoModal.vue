@@ -21,7 +21,7 @@
           <div class="flex items-center gap-2">
             <label class="text-sm font-medium text-content-secondary dark:text-gray-400">从模板创建</label>
             <select
-              @change="applyTemplate($event.target.value)"
+              @change="onTemplateSelect($event.target.value)"
               class="flex-1 text-sm input-field py-1.5"
             >
               <option value="">-- 选择模板 --</option>
@@ -32,26 +32,41 @@
 
         <!-- Title -->
         <div>
-          <label class="block text-sm font-medium text-content-secondary dark:text-gray-400 mb-1.5">标题 *</label>
+          <label class="block text-sm font-medium text-content-secondary dark:text-gray-400 mb-1.5">
+            标题 *
+            <span v-if="isLocked('title')" class="inline-flex items-center gap-0.5 text-xs text-purple-500 font-normal ml-1">
+              <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/></svg>
+              已锁定
+            </span>
+          </label>
           <input
             ref="titleInput"
             v-model="form.title"
             class="input-field"
+            :class="isLocked('title') ? 'opacity-60 cursor-not-allowed bg-gray-100 dark:bg-gray-700' : ''"
             placeholder="输入待办事项..."
+            :disabled="isLocked('title')"
             @keydown.enter="submit"
           />
         </div>
 
         <!-- Priority -->
         <div>
-          <label class="block text-sm font-medium text-content-secondary dark:text-gray-400 mb-1.5">优先级</label>
-          <div class="flex gap-2">
+          <label class="block text-sm font-medium text-content-secondary dark:text-gray-400 mb-1.5">
+            优先级
+            <span v-if="isLocked('priority')" class="inline-flex items-center gap-0.5 text-xs text-purple-500 font-normal ml-1">
+              <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/></svg>
+              已锁定
+            </span>
+          </label>
+          <div class="flex gap-2" :class="isLocked('priority') ? 'opacity-60 pointer-events-none' : ''">
             <button
               v-for="p in priorities"
               :key="p.value"
               @click="form.priority = p.value"
               class="flex-1 py-2 rounded-lg text-sm font-medium border transition-colors"
               :class="form.priority === p.value ? p.activeClass : 'border-border dark:border-gray-600 text-content-tertiary hover:border-content-tertiary'"
+              :disabled="isLocked('priority')"
             >
               {{ p.label }}
             </button>
@@ -60,15 +75,25 @@
 
         <!-- Tags -->
         <div>
-          <label class="block text-sm font-medium text-content-secondary dark:text-gray-400 mb-1.5">标签</label>
-          <div class="flex flex-wrap gap-2">
+          <label class="block text-sm font-medium text-content-secondary dark:text-gray-400 mb-1.5">
+            标签
+            <span v-if="isLocked('tags')" class="inline-flex items-center gap-0.5 text-xs text-purple-500 font-normal ml-1">
+              <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/></svg>
+              已锁定
+            </span>
+          </label>
+          <div class="flex flex-wrap gap-2" :class="isLocked('tags') ? 'opacity-60 pointer-events-none' : ''">
             <button
               v-for="tag in store.tags"
               :key="tag.id"
               @click="toggleTag(tag.id)"
-              class="tag-badge cursor-pointer border transition-all"
-              :class="form.tagIds.includes(tag.id) ? 'border-current opacity-100' : 'border-transparent opacity-50 hover:opacity-75'"
+              class="tag-badge border transition-all"
+              :class="[
+                form.tagIds.includes(tag.id) ? 'border-current opacity-100' : 'border-transparent opacity-50 hover:opacity-75',
+                isLocked('tags') ? 'cursor-not-allowed' : 'cursor-pointer'
+              ]"
               :style="{ backgroundColor: tag.color + '20', color: tag.color }"
+              :disabled="isLocked('tags')"
             >
               {{ tag.name }}
             </button>
@@ -104,14 +129,21 @@
 
         <!-- Recurrence -->
         <div>
-          <label class="block text-sm font-medium text-content-secondary dark:text-gray-400 mb-1.5">重复</label>
-          <div class="flex gap-2 flex-wrap">
+          <label class="block text-sm font-medium text-content-secondary dark:text-gray-400 mb-1.5">
+            重复
+            <span v-if="isLocked('recurrence')" class="inline-flex items-center gap-0.5 text-xs text-purple-500 font-normal ml-1">
+              <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/></svg>
+              已锁定
+            </span>
+          </label>
+          <div class="flex gap-2 flex-wrap" :class="isLocked('recurrence') ? 'opacity-60 pointer-events-none' : ''">
             <button
               v-for="r in recurrenceOptions"
               :key="r.value"
               @click="form.recurrence_type = r.value"
               class="px-3 py-2 rounded-lg text-sm font-medium border transition-colors"
               :class="form.recurrence_type === r.value ? 'border-primary bg-primary/10 text-primary' : 'border-border dark:border-gray-600 text-content-tertiary hover:border-content-tertiary'"
+              :disabled="isLocked('recurrence')"
             >
               {{ r.label }}
             </button>
@@ -121,15 +153,25 @@
         <!-- Steps -->
         <div>
           <div class="flex items-center justify-between mb-1.5">
-            <label class="text-sm font-medium text-content-secondary dark:text-gray-400">任务步骤（选填）</label>
-            <button @click="addStep" class="flex items-center gap-1 text-xs text-primary hover:text-primary-hover transition-colors">
+            <label class="text-sm font-medium text-content-secondary dark:text-gray-400">
+              任务步骤（选填）
+              <span v-if="isLocked('steps')" class="inline-flex items-center gap-0.5 text-xs text-purple-500 font-normal ml-1">
+                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/></svg>
+                已锁定
+              </span>
+            </label>
+            <button
+              v-if="!isLocked('steps')"
+              @click="addStep"
+              class="flex items-center gap-1 text-xs text-primary hover:text-primary-hover transition-colors"
+            >
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
               </svg>
               添加步骤
             </button>
           </div>
-          <div v-if="form.steps.length > 0" class="space-y-2">
+          <div v-if="form.steps.length > 0" class="space-y-2" :class="isLocked('steps') ? 'opacity-60 pointer-events-none' : ''">
             <div
               v-for="(step, index) in form.steps"
               :key="index"
@@ -142,9 +184,11 @@
                 v-model="step.title"
                 class="flex-1 input-field py-1.5 text-sm"
                 placeholder="输入步骤内容..."
+                :disabled="isLocked('steps')"
                 @keydown.enter.prevent="onStepEnter(index)"
               />
               <button
+                v-if="!isLocked('steps')"
                 @click="removeStep(index)"
                 class="p-1 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-900/20 text-content-tertiary hover:text-red-500 transition-all"
               >
@@ -213,9 +257,14 @@ const store = useAppStore()
 const props = defineProps({
   show: Boolean,
   todo: { type: Object, default: null },
+  lockedFields: { type: Array, default: () => [] },
 })
 
-const emit = defineEmits(['close', 'submit'])
+const emit = defineEmits(['close', 'submit', 'update:lockedFields'])
+
+function isLocked(field) {
+  return props.lockedFields.includes(field)
+}
 
 const titleInput = ref(null)
 const isEditing = ref(false)
@@ -289,6 +338,12 @@ watch(() => props.show, async (val) => {
         form.title = props.todo.title || ''
         form.priority = props.todo.priority || 'medium'
         form.tagIds = (props.todo.tags || []).map((t) => t.id)
+        // Apply template data if present
+        if (props.todo._templateData) {
+          form.recurrence_type = props.todo._templateData.recurrence_type || 'none'
+          form.recurrence_config = props.todo._templateData.recurrence_config || '{}'
+          form.steps = (props.todo._templateData.steps || []).map(s => ({ title: s.title, completed: !!s.completed }))
+        }
       }
     }
   }
@@ -363,6 +418,14 @@ function formatSize(bytes) {
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
 }
 
+async function onTemplateSelect(templateId) {
+  if (!templateId) {
+    emit('update:lockedFields', [])
+    return
+  }
+  await applyTemplate(templateId)
+}
+
 async function applyTemplate(templateId) {
   if (!templateId) return
   const tpl = allTemplates.value.find(t => t.id === Number(templateId))
@@ -388,6 +451,15 @@ async function applyTemplate(templateId) {
   } catch {
     form.steps = []
   }
+
+  // Apply locked fields
+  let locked = []
+  try {
+    locked = JSON.parse(tpl.locked_fields || '[]')
+  } catch {
+    locked = []
+  }
+  emit('update:lockedFields', locked)
 }
 
 function submit() {

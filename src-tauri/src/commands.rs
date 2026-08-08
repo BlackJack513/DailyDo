@@ -92,6 +92,7 @@ pub struct Template {
     pub recurrence_type: Option<String>,
     pub recurrence_config: Option<String>,
     pub tag_ids: Option<String>,
+    pub locked_fields: Option<String>,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
 }
@@ -1178,7 +1179,7 @@ pub fn get_all_templates(state: State<AppState>) -> Result<Vec<Template>, String
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let mut stmt = db
         .prepare(
-            "SELECT id, name, title, notes, priority, recurrence_type, recurrence_config, tag_ids, created_at, updated_at
+            "SELECT id, name, title, notes, priority, recurrence_type, recurrence_config, tag_ids, locked_fields, created_at, updated_at
              FROM todo_templates ORDER BY updated_at DESC",
         )
         .map_err(|e| e.to_string())?;
@@ -1194,8 +1195,9 @@ pub fn get_all_templates(state: State<AppState>) -> Result<Vec<Template>, String
                 recurrence_type: row.get(5)?,
                 recurrence_config: row.get(6)?,
                 tag_ids: row.get(7)?,
-                created_at: row.get(8)?,
-                updated_at: row.get(9)?,
+                locked_fields: row.get(8)?,
+                created_at: row.get(9)?,
+                updated_at: row.get(10)?,
             })
         })
         .map_err(|e| e.to_string())?
@@ -1213,11 +1215,12 @@ pub fn create_template(state: State<AppState>, template: Template) -> Result<Tem
     let recurrence_type = template.recurrence_type.clone().unwrap_or_else(|| "none".to_string());
     let recurrence_config = template.recurrence_config.clone().unwrap_or_else(|| "{}".to_string());
     let tag_ids = template.tag_ids.clone().unwrap_or_else(|| "[]".to_string());
+    let locked_fields = template.locked_fields.clone().unwrap_or_else(|| "[]".to_string());
     let notes = template.notes.clone().unwrap_or_default();
 
     db.execute(
-        "INSERT INTO todo_templates (name, title, notes, priority, recurrence_type, recurrence_config, tag_ids, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        "INSERT INTO todo_templates (name, title, notes, priority, recurrence_type, recurrence_config, tag_ids, locked_fields, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         params![
             template.name,
             template.title,
@@ -1226,6 +1229,7 @@ pub fn create_template(state: State<AppState>, template: Template) -> Result<Tem
             recurrence_type,
             recurrence_config,
             tag_ids,
+            locked_fields,
             &now,
             &now,
         ],
@@ -1242,6 +1246,7 @@ pub fn create_template(state: State<AppState>, template: Template) -> Result<Tem
         recurrence_type: Some(recurrence_type),
         recurrence_config: Some(recurrence_config),
         tag_ids: Some(tag_ids),
+        locked_fields: Some(locked_fields),
         created_at: Some(now.clone()),
         updated_at: Some(now),
     })
@@ -1255,11 +1260,12 @@ pub fn update_template(state: State<AppState>, template: Template) -> Result<(),
     let recurrence_type = template.recurrence_type.clone().unwrap_or_else(|| "none".to_string());
     let recurrence_config = template.recurrence_config.clone().unwrap_or_else(|| "{}".to_string());
     let tag_ids = template.tag_ids.clone().unwrap_or_else(|| "[]".to_string());
+    let locked_fields = template.locked_fields.clone().unwrap_or_else(|| "[]".to_string());
     let notes = template.notes.clone().unwrap_or_default();
 
     db.execute(
         "UPDATE todo_templates SET name=?1, title=?2, notes=?3, priority=?4, recurrence_type=?5,
-         recurrence_config=?6, tag_ids=?7, updated_at=?8 WHERE id=?9",
+         recurrence_config=?6, tag_ids=?7, locked_fields=?8, updated_at=?9 WHERE id=?10",
         params![
             template.name,
             template.title,
@@ -1268,6 +1274,7 @@ pub fn update_template(state: State<AppState>, template: Template) -> Result<(),
             recurrence_type,
             recurrence_config,
             tag_ids,
+            locked_fields,
             &now,
             template.id.unwrap(),
         ],

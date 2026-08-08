@@ -8,12 +8,20 @@
           {{ pendingTodos.length }} 待处理 · {{ inProgressTodos.length }} 进行中 · {{ doneTodos.length }} 已完成
         </p>
       </div>
-      <button @click="openNewTodoModal" class="btn-primary flex items-center gap-2">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-        </svg>
-        新建待办
-      </button>
+      <div class="flex items-center gap-2">
+        <button @click="openTemplatePicker" class="btn-secondary flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+          </svg>
+          从模板创建
+        </button>
+        <button @click="openNewTodoModal" class="btn-primary flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+          新建待办
+        </button>
+      </div>
     </div>
 
     <!-- Quick Add -->
@@ -201,8 +209,10 @@
     <AddTodoModal
       :show="showFullModal"
       :todo="editingTodo"
+      :locked-fields="modalLockedFields"
       @close="closeFullModal"
       @submit="handleSubmit"
+      @update:locked-fields="modalLockedFields = $event"
     />
 
     <!-- Detail Modal -->
@@ -224,6 +234,56 @@
       </p>
     </div>
 
+    <!-- Template Picker Modal -->
+    <div v-if="showTemplatePicker" class="fixed inset-0 z-50 flex items-center justify-center">
+      <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="showTemplatePicker = false"></div>
+      <div class="relative w-full max-w-md mx-4 bg-surface dark:bg-gray-800 rounded-2xl shadow-2xl border border-border dark:border-gray-700">
+        <!-- Header -->
+        <div class="flex items-center justify-between px-6 py-4 border-b border-border dark:border-gray-700">
+          <h3 class="text-lg font-semibold text-content dark:text-gray-100">从模板创建待办</h3>
+          <button @click="showTemplatePicker = false" class="p-1 rounded-lg hover:bg-surface-tertiary dark:hover:bg-gray-700 text-content-tertiary">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <!-- Template List -->
+        <div class="px-6 py-4 max-h-[50vh] overflow-y-auto">
+          <div v-if="templateList.length === 0 && !templateLoading" class="text-center py-8 text-content-tertiary dark:text-gray-500">
+            <p class="text-sm">暂无模板</p>
+            <p class="text-xs mt-1">请先在「模板管理」中创建模板</p>
+          </div>
+          <div v-else class="space-y-2">
+            <button
+              v-for="tpl in templateList"
+              :key="tpl.id"
+              @click="createFromTemplate(tpl)"
+              class="w-full text-left p-3 rounded-xl border border-border dark:border-gray-700 hover:border-primary hover:bg-primary/5 transition-all group"
+            >
+              <div class="flex items-center justify-between">
+                <div class="flex-1 min-w-0">
+                  <h4 class="font-medium text-content dark:text-gray-100 truncate">{{ tpl.name }}</h4>
+                  <p class="text-sm text-content-secondary dark:text-gray-400 truncate mt-0.5">{{ tpl.title }}</p>
+                </div>
+                <svg class="w-4 h-4 text-content-tertiary group-hover:text-primary transition-colors flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+              <div class="flex flex-wrap items-center gap-1.5 mt-2">
+                <span class="text-xs px-1.5 py-0.5 rounded font-medium" :class="tplPriorityClass(tpl.priority)">{{ tplPriorityLabel(tpl.priority) }}</span>
+                <span v-if="tpl.recurrence_type && tpl.recurrence_type !== 'none'" class="text-xs px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium">
+                  {{ tplRecurrenceLabel(tpl.recurrence_type) }}
+                </span>
+                <span v-if="getTplLockedCount(tpl) > 0" class="text-xs px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-900/20 text-purple-500 font-medium">
+                  {{ getTplLockedCount(tpl) }} 个锁定字段
+                </span>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Delete Confirm -->
     <div v-if="deletingTodo" class="fixed inset-0 z-50 flex items-center justify-center">
       <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="deletingTodo = null"></div>
@@ -242,6 +302,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useAppStore } from '../stores/app'
+import * as db from '../utils/db'
 import TodoItem from '../components/TodoItem.vue'
 import AddTodoModal from '../components/AddTodoModal.vue'
 import TodoDetailModal from '../components/TodoDetailModal.vue'
@@ -257,6 +318,10 @@ const quickTitle = ref('')
 const allCollapsed = ref(false)
 const detailTodo = ref(null)
 const showDetailModal = ref(false)
+const showTemplatePicker = ref(false)
+const templateList = ref([])
+const templateLoading = ref(false)
+const modalLockedFields = ref([])
 
 const pendingTodos = computed(() =>
   store.currentTodos.filter((t) => t.status === 'pending')
@@ -444,6 +509,90 @@ async function handleSubmit(data) {
 function closeFullModal() {
   showFullModal.value = false
   editingTodo.value = null
+  modalLockedFields.value = []
+}
+
+async function openTemplatePicker() {
+  showTemplatePicker.value = true
+  templateLoading.value = true
+  try {
+    templateList.value = await db.getAllTemplates()
+  } catch (e) {
+    templateList.value = []
+  } finally {
+    templateLoading.value = false
+  }
+}
+
+async function createFromTemplate(tpl) {
+  showTemplatePicker.value = false
+
+  // Parse locked fields
+  let locked = []
+  try {
+    locked = JSON.parse(tpl.locked_fields || '[]')
+  } catch {
+    locked = []
+  }
+  modalLockedFields.value = locked
+
+  // Parse tags
+  let tagIds = []
+  try {
+    tagIds = JSON.parse(tpl.tag_ids || '[]')
+  } catch {
+    tagIds = []
+  }
+
+  // Load template steps
+  let steps = []
+  try {
+    const tplSteps = await db.getTemplateSteps(tpl.id)
+    steps = tplSteps.map(s => ({ title: s.title, completed: false }))
+  } catch {
+    steps = []
+  }
+
+  // Open modal with pre-filled template data
+  editingTodo.value = {
+    title: tpl.title || '',
+    priority: tpl.priority || 'medium',
+    tags: tagIds.map(id => store.tags.find(t => t.id === id)).filter(Boolean),
+    todo_date: store.currentDate,
+    _isNew: true,
+    _templateData: {
+      recurrence_type: tpl.recurrence_type || 'none',
+      recurrence_config: tpl.recurrence_config || '{}',
+      steps,
+    },
+  }
+  showFullModal.value = true
+}
+
+function tplPriorityClass(p) {
+  if (p === 'high') return 'bg-red-50 dark:bg-red-900/20 text-red-500'
+  if (p === 'low') return 'bg-green-50 dark:bg-green-900/20 text-green-500'
+  return 'bg-amber-50 dark:bg-amber-900/20 text-amber-500'
+}
+
+function tplPriorityLabel(p) {
+  if (p === 'high') return '高优先级'
+  if (p === 'low') return '低优先级'
+  return '中优先级'
+}
+
+function tplRecurrenceLabel(r) {
+  const map = { workday: '工作日', daily: '每日', weekly: '每周', monthly: '每月' }
+  return map[r] || r
+}
+
+function getTplLockedCount(tpl) {
+  try {
+    const fields = JSON.parse(tpl.locked_fields || '[]')
+    return Array.isArray(fields) ? fields.length : 0
+  } catch {
+    return 0
+  }
 }
 
 function toggleAllColumns() {

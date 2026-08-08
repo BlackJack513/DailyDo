@@ -71,6 +71,15 @@
             >{{ tn }}</span>
           </div>
 
+          <!-- Locked fields indicator -->
+          <div v-if="getLockedFields(tpl).length > 0" class="flex flex-wrap gap-1.5 mb-3">
+            <span
+              v-for="lf in getLockedFields(tpl)"
+              :key="lf"
+              class="text-xs px-2 py-0.5 rounded-full bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 font-medium"
+            >🔒 {{ lf }}</span>
+          </div>
+
           <!-- Steps -->
           <div v-if="templateSteps[tpl.id] && templateSteps[tpl.id].length > 0" class="mt-2 pt-3 border-t border-border dark:border-gray-700">
             <p class="text-xs text-content-tertiary dark:text-gray-500 mb-1.5">{{ templateSteps[tpl.id].length }} 个步骤</p>
@@ -178,6 +187,36 @@
             </div>
           </div>
 
+          <!-- Locked Fields -->
+          <div>
+            <label class="block text-sm font-medium text-content-secondary dark:text-gray-400 mb-1.5">
+              锁定字段
+              <span class="text-xs font-normal text-content-tertiary dark:text-gray-500 ml-1">（使用模板时这些字段不可修改）</span>
+            </label>
+            <div class="flex flex-wrap gap-3">
+              <label class="flex items-center gap-1.5 text-sm text-content-secondary dark:text-gray-400 cursor-pointer select-none">
+                <input type="checkbox" value="title" v-model="tplForm.lockedFields" class="rounded border-border dark:border-gray-600 text-primary focus:ring-primary" />
+                标题
+              </label>
+              <label class="flex items-center gap-1.5 text-sm text-content-secondary dark:text-gray-400 cursor-pointer select-none">
+                <input type="checkbox" value="priority" v-model="tplForm.lockedFields" class="rounded border-border dark:border-gray-600 text-primary focus:ring-primary" />
+                优先级
+              </label>
+              <label class="flex items-center gap-1.5 text-sm text-content-secondary dark:text-gray-400 cursor-pointer select-none">
+                <input type="checkbox" value="tags" v-model="tplForm.lockedFields" class="rounded border-border dark:border-gray-600 text-primary focus:ring-primary" />
+                标签
+              </label>
+              <label class="flex items-center gap-1.5 text-sm text-content-secondary dark:text-gray-400 cursor-pointer select-none">
+                <input type="checkbox" value="recurrence" v-model="tplForm.lockedFields" class="rounded border-border dark:border-gray-600 text-primary focus:ring-primary" />
+                重复
+              </label>
+              <label class="flex items-center gap-1.5 text-sm text-content-secondary dark:text-gray-400 cursor-pointer select-none">
+                <input type="checkbox" value="steps" v-model="tplForm.lockedFields" class="rounded border-border dark:border-gray-600 text-primary focus:ring-primary" />
+                步骤
+              </label>
+            </div>
+          </div>
+
           <!-- Steps -->
           <div>
             <div class="flex items-center justify-between mb-1.5">
@@ -264,6 +303,7 @@ const defaultTplForm = () => ({
   priority: 'medium',
   tagIds: [],
   recurrence_type: 'none',
+  lockedFields: [],
   steps: [],
 })
 
@@ -333,6 +373,25 @@ function getTemplateTagNames(tpl) {
   }
 }
 
+const lockedFieldLabels = {
+  title: '标题',
+  priority: '优先级',
+  tags: '标签',
+  recurrence: '重复',
+  steps: '步骤',
+}
+
+function getLockedFields(tpl) {
+  if (!tpl.locked_fields) return []
+  try {
+    const fields = JSON.parse(tpl.locked_fields)
+    if (!Array.isArray(fields)) return []
+    return fields.map(f => lockedFieldLabels[f] || f)
+  } catch {
+    return []
+  }
+}
+
 function openCreateModal() {
   editingTemplate.value = null
   Object.assign(tplForm, defaultTplForm())
@@ -351,6 +410,12 @@ async function editTemplate(tpl) {
     tplForm.tagIds = JSON.parse(tpl.tag_ids || '[]')
   } catch {
     tplForm.tagIds = []
+  }
+  // Parse locked_fields
+  try {
+    tplForm.lockedFields = JSON.parse(tpl.locked_fields || '[]')
+  } catch {
+    tplForm.lockedFields = []
   }
   // Load steps
   const steps = await db.getTemplateSteps(tpl.id)
@@ -396,6 +461,7 @@ async function saveTemplate() {
     recurrence_type: tplForm.recurrence_type,
     recurrence_config: '{}',
     tag_ids: JSON.stringify(tplForm.tagIds),
+    locked_fields: JSON.stringify(tplForm.lockedFields),
   }
 
   let savedId
