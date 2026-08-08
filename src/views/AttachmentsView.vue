@@ -87,17 +87,34 @@
             <!-- Actions -->
             <div class="flex items-center gap-2 flex-shrink-0">
               <button
-                @click="openFile(att.attachment_path)"
-                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors"
+                @click="showInExplorer(att.attachment_path)"
+                :disabled="openingId === att.todo_id"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-600 hover:bg-gray-200 dark:hover:bg-gray-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                title="在文件资源管理器中显示"
               >
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                </svg>
+                定位
+              </button>
+              <button
+                @click="openFile(att.attachment_path, att.todo_id)"
+                :disabled="openingId === att.todo_id"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <svg v-if="openingId === att.todo_id" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                 </svg>
-                打开
+                {{ openingId === att.todo_id ? '打开中...' : '打开' }}
               </button>
               <button
                 @click="confirmDelete(att)"
-                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-red-500 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
+                :disabled="openingId === att.todo_id"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-red-500 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -150,6 +167,7 @@ const loading = ref(true)
 const filter = ref('all')
 const deleteTarget = ref(null)
 const showBulkConfirm = ref(false)
+const openingId = ref(null)
 
 onMounted(async () => {
   await loadData()
@@ -204,11 +222,23 @@ function statusClass(status) {
   return map[status] || 'text-content-tertiary'
 }
 
-async function openFile(filePath) {
+async function openFile(filePath, todoId) {
+  if (openingId.value === todoId) return
+  openingId.value = todoId
   try {
     await db.openAttachment(filePath)
   } catch (e) {
     console.error('Failed to open attachment:', e)
+  } finally {
+    openingId.value = null
+  }
+}
+
+async function showInExplorer(filePath) {
+  try {
+    await db.showAttachmentInExplorer(filePath)
+  } catch (e) {
+    console.error('Failed to show in explorer:', e)
   }
 }
 

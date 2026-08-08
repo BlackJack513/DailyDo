@@ -193,3 +193,7 @@ export async function clearCompletedAttachments() {
 export async function openAttachment(filePath) {
   return await invoke('open_attachment', { filePath })
 }
+
+export async function showAttachmentInExplorer(filePath) {
+  return await invoke('show_attachment_in_explorer', { filePath })
+}

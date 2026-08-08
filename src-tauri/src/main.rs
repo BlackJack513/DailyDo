@@ -99,6 +99,7 @@ fn main() {
             commands::get_template_steps,
             commands::save_template_steps,
             commands::open_attachment,
+            commands::show_attachment_in_explorer,
             commands::get_all_attachments,
             commands::delete_attachment,
             commands::clear_completed_attachments,

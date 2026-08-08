@@ -124,15 +124,33 @@
                   <p class="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{{ todo.attachment_name }}</p>
                   <p class="text-xs text-gray-400 dark:text-gray-500">{{ formatSize(todo.attachment_size) }}</p>
                 </div>
-                <button
-                  @click="openAttachment"
-                  class="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors"
-                >
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                  </svg>
-                  打开
-                </button>
+                <div class="flex items-center gap-1.5">
+                  <button
+                    @click="showInExplorer"
+                    :disabled="opening"
+                    class="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-600 hover:bg-gray-200 dark:hover:bg-gray-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    title="在文件资源管理器中显示"
+                  >
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                    </svg>
+                    定位
+                  </button>
+                  <button
+                    @click="openAttachment"
+                    :disabled="opening"
+                    class="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <svg v-if="opening" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                    </svg>
+                    <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                    {{ opening ? '打开中...' : '打开' }}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -155,11 +173,25 @@
         </div>
       </div>
     </Transition>
+    <!-- Toast notification -->
+    <Transition name="toast">
+      <div v-if="toast.show" class="fixed bottom-8 left-1/2 -translate-x-1/2 z-[60] px-4 py-2.5 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2 pointer-events-none"
+        :class="toast.type === 'success' ? 'bg-emerald-500 text-white' : toast.type === 'error' ? 'bg-red-500 text-white' : 'bg-gray-700 text-white'"
+      >
+        <svg v-if="toast.type === 'success'" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+        </svg>
+        <svg v-else-if="toast.type === 'error'" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+        {{ toast.message }}
+      </div>
+    </Transition>
   </Teleport>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/tauri'
 
 const props = defineProps({
@@ -168,6 +200,16 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'delete', 'toggle-step'])
+
+const opening = ref(false)
+const toast = ref({ show: false, message: '', type: 'info' })
+
+let toastTimer = null
+function showToast(message, type = 'info') {
+  toast.value = { show: true, message, type }
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => { toast.value.show = false }, 2500)
+}
 
 const stepCompleted = computed(() => {
   if (!props.todo?.steps) return 0
@@ -225,12 +267,30 @@ function formatSize(bytes) {
 }
 
 async function openAttachment() {
-  if (props.todo?.attachment_path) {
-    try {
-      await invoke('open_attachment', { filePath: props.todo.attachment_path })
-    } catch (e) {
-      console.error('Failed to open attachment:', e)
-    }
+  if (opening.value || !props.todo?.attachment_path) return
+  opening.value = true
+  try {
+    await invoke('open_attachment', { filePath: props.todo.attachment_path })
+    showToast('附件已打开', 'success')
+  } catch (e) {
+    console.error('Failed to open attachment:', e)
+    showToast('打开失败：' + (e.message || e), 'error')
+  } finally {
+    opening.value = false
+  }
+}
+
+async function showInExplorer() {
+  if (opening.value || !props.todo?.attachment_path) return
+  opening.value = true
+  try {
+    await invoke('show_attachment_in_explorer', { filePath: props.todo.attachment_path })
+    showToast('已在文件资源管理器中定位', 'success')
+  } catch (e) {
+    console.error('Failed to show in explorer:', e)
+    showToast('定位失败：' + (e.message || e), 'error')
+  } finally {
+    opening.value = false
   }
 }
 </script>
@@ -251,5 +311,19 @@ async function openAttachment() {
 }
 .modal-leave-to .animate-in {
   transform: scale(0.95) translateY(10px);
+}
+.toast-enter-active {
+  transition: all 0.3s ease-out;
+}
+.toast-leave-active {
+  transition: all 0.2s ease-in;
+}
+.toast-enter-from {
+  opacity: 0;
+  transform: translateX(-50%) translateY(12px);
+}
+.toast-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-8px);
 }
 </style>

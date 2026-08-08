@@ -1387,6 +1387,40 @@ pub fn open_attachment(file_path: String) -> Result<(), String> {
     Ok(())
 }
 
+/// Show a file in the system file explorer (highlight the file)
+#[tauri::command]
+pub fn show_attachment_in_explorer(file_path: String) -> Result<(), String> {
+    // Check if file exists
+    if !std::path::Path::new(&file_path).exists() {
+        return Err("文件不存在，可能已被删除".to_string());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .args(["/select,", &file_path])
+            .spawn()
+            .map_err(|e| format!("Failed to open explorer: {}", e))?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .args(["-R", &file_path])
+            .spawn()
+            .map_err(|e| format!("Failed to open explorer: {}", e))?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let parent = std::path::Path::new(&file_path)
+            .parent()
+            .unwrap_or(std::path::Path::new("/"));
+        std::process::Command::new("xdg-open")
+            .arg(parent)
+            .spawn()
+            .map_err(|e| format!("Failed to open explorer: {}", e))?;
+    }
+    Ok(())
+}
+
 /// Info about an attachment (for listing)
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AttachmentInfo {
