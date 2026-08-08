@@ -386,6 +386,73 @@ export const useAppStore = defineStore('app', () => {
     const newType = current === 'workday' ? 'rest' : 'workday'
     await db.setDayType(dateStr, newType)
     calendarDays.value[dateStr] = newType
+
+    // If toggling today's date, handle workday recurrence todos
+    const todayStr = formatDate(new Date())
+    if (dateStr === todayStr) {
+      if (current === 'workday' && newType === 'rest') {
+        // Switching today from workday → rest: soft-delete workday recurrence todos
+        const todos = await db.getTodosByDate(dateStr)
+        for (const todo of todos) {
+          if (todo.recurrence_type === 'workday' && todo.deleted_at == null) {
+            await db.deleteTodo(todo.id)
+          }
+        }
+      } else if (current === 'rest' && newType === 'workday') {
+        // Switching today from rest → workday: create workday recurrence todos
+        const allTodos = await db.getAllTodos()
+        const workdayGroups = {}
+        for (const t of allTodos) {
+          if (t.recurrence_type === 'workday' && t.recurrence_enabled !== false && t.deleted_at == null) {
+            const gid = t.recurrence_group_id || `single_${t.id}`
+            if (!workdayGroups[gid]) {
+              workdayGroups[gid] = t
+            }
+          }
+        }
+
+        const existingTodos = await db.getTodosByDate(dateStr)
+        for (const gid of Object.keys(workdayGroups)) {
+          const template = workdayGroups[gid]
+          const alreadyExists = existingTodos.some(
+            t => (t.recurrence_group_id === gid || `single_${t.id}` === gid) && t.deleted_at == null
+          )
+          if (!alreadyExists) {
+            const created = await db.createTodo({
+              title: template.title,
+              notes: template.notes || '',
+              status: 'pending',
+              priority: template.priority || 'medium',
+              due_date: template.due_date || null,
+              todo_date: dateStr,
+              recurrence_type: 'workday',
+              recurrence_config: template.recurrence_config || '{}',
+              recurrence_group_id: template.recurrence_group_id || gid,
+              recurrence_enabled: true,
+            })
+            // Copy tags from template
+            if (template.tags && template.tags.length > 0) {
+              const tagIds = template.tags.map(t => t.id)
+              await db.setTodoTags(created.id, tagIds)
+            }
+            // Copy steps from template (reset completed)
+            if (template.steps && template.steps.length > 0) {
+              const newSteps = template.steps.map(s => ({
+                title: s.title,
+                completed: false,
+                sort_order: s.sort_order || 0,
+              }))
+              await db.saveTodoSteps(created.id, newSteps)
+            }
+          }
+        }
+      }
+      // Reload current day's todos to reflect changes
+      if (currentDate.value === dateStr) {
+        await loadTodosForDate(dateStr)
+      }
+      await loadOverviewStats()
+    }
   }
 
   // ─── Stats ──────────────────────────────────────────
