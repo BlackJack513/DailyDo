@@ -212,7 +212,6 @@
       :locked-fields="modalLockedFields"
       @close="closeFullModal"
       @submit="handleSubmit"
-      @update:locked-fields="modalLockedFields = $event"
     />
 
     <!-- Detail Modal -->

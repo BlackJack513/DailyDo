@@ -123,6 +123,7 @@
             <input
               ref="nameInput"
               v-model="tplForm.name"
+              @input="formError = ''"
               class="input-field"
               placeholder="例如：每日站会、周报..."
             />
@@ -133,6 +134,7 @@
             <label class="block text-sm font-medium text-content-secondary dark:text-gray-400 mb-1.5">默认标题 *</label>
             <input
               v-model="tplForm.title"
+              @input="formError = ''"
               class="input-field"
               placeholder="创建待办时的默认标题..."
             />
@@ -259,8 +261,9 @@
 
         <!-- Modal Footer -->
         <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-border dark:border-gray-700">
+          <span v-if="formError" class="flex-1 text-sm text-red-500">{{ formError }}</span>
           <button @click="showModal = false" class="btn-secondary">取消</button>
-          <button @click="saveTemplate" class="btn-primary" :disabled="!tplForm.name.trim() || !tplForm.title.trim()">
+          <button @click="saveTemplate" class="btn-primary">
             {{ editingTemplate ? '保存' : '创建' }}
           </button>
         </div>
@@ -296,6 +299,7 @@ const showModal = ref(false)
 const editingTemplate = ref(null)
 const deleteTarget = ref(null)
 const nameInput = ref(null)
+const formError = ref('')
 
 const defaultTplForm = () => ({
   name: '',
@@ -395,12 +399,14 @@ function getLockedFields(tpl) {
 function openCreateModal() {
   editingTemplate.value = null
   Object.assign(tplForm, defaultTplForm())
+  formError.value = ''
   showModal.value = true
   nextTick(() => nameInput.value?.focus())
 }
 
 async function editTemplate(tpl) {
   editingTemplate.value = tpl
+  formError.value = ''
   tplForm.name = tpl.name
   tplForm.title = tpl.title
   tplForm.priority = tpl.priority || 'medium'
@@ -451,7 +457,19 @@ function onStepEnter(index) {
 }
 
 async function saveTemplate() {
-  if (!tplForm.name.trim() || !tplForm.title.trim()) return
+  if (!tplForm.name.trim() && !tplForm.title.trim()) {
+    formError.value = '请填写模板名称和默认标题'
+    return
+  }
+  if (!tplForm.name.trim()) {
+    formError.value = '请填写模板名称'
+    return
+  }
+  if (!tplForm.title.trim()) {
+    formError.value = '请填写默认标题'
+    return
+  }
+  formError.value = ''
 
   const templateData = {
     ...(editingTemplate.value || {}),

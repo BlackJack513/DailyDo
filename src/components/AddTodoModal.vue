@@ -16,20 +16,6 @@
 
       <!-- Form -->
       <div class="px-6 py-4 space-y-4 max-h-[60vh] overflow-y-auto">
-        <!-- From Template -->
-        <div v-if="!isEditing && allTemplates.length > 0">
-          <div class="flex items-center gap-2">
-            <label class="text-sm font-medium text-content-secondary dark:text-gray-400">从模板创建</label>
-            <select
-              @change="onTemplateSelect($event.target.value)"
-              class="flex-1 text-sm input-field py-1.5"
-            >
-              <option value="">-- 选择模板 --</option>
-              <option v-for="tpl in allTemplates" :key="tpl.id" :value="tpl.id">{{ tpl.name }}</option>
-            </select>
-          </div>
-        </div>
-
         <!-- Title -->
         <div>
           <label class="block text-sm font-medium text-content-secondary dark:text-gray-400 mb-1.5">
@@ -249,7 +235,6 @@ import { useAppStore } from '../stores/app'
 import { open } from '@tauri-apps/api/dialog'
 import { readBinaryFile } from '@tauri-apps/api/fs'
 import { invoke } from '@tauri-apps/api/tauri'
-import * as db from '../utils/db'
 import RichEditor from './RichEditor.vue'
 
 const store = useAppStore()
@@ -260,7 +245,7 @@ const props = defineProps({
   lockedFields: { type: Array, default: () => [] },
 })
 
-const emit = defineEmits(['close', 'submit', 'update:lockedFields'])
+const emit = defineEmits(['close', 'submit'])
 
 function isLocked(field) {
   return props.lockedFields.includes(field)
@@ -269,7 +254,6 @@ function isLocked(field) {
 const titleInput = ref(null)
 const isEditing = ref(false)
 const attachmentError = ref('')
-const allTemplates = ref([])
 
 const defaultForm = () => ({
   title: '',
@@ -305,12 +289,6 @@ const recurrenceOptions = [
 
 watch(() => props.show, async (val) => {
   if (val) {
-    // Load templates for "create from template" feature
-    try {
-      allTemplates.value = await db.getAllTemplates()
-    } catch (e) {
-      allTemplates.value = []
-    }
     await nextTick()
     titleInput.value?.focus()
     attachmentError.value = ''
@@ -416,50 +394,6 @@ function formatSize(bytes) {
   if (bytes < 1024) return bytes + ' B'
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
-}
-
-async function onTemplateSelect(templateId) {
-  if (!templateId) {
-    emit('update:lockedFields', [])
-    return
-  }
-  await applyTemplate(templateId)
-}
-
-async function applyTemplate(templateId) {
-  if (!templateId) return
-  const tpl = allTemplates.value.find(t => t.id === Number(templateId))
-  if (!tpl) return
-
-  form.title = tpl.title || ''
-  form.priority = tpl.priority || 'medium'
-  form.recurrence_type = tpl.recurrence_type || 'none'
-  form.recurrence_config = tpl.recurrence_config || '{}'
-  form.notes = tpl.notes || ''
-
-  // Apply tags
-  try {
-    form.tagIds = JSON.parse(tpl.tag_ids || '[]')
-  } catch {
-    form.tagIds = []
-  }
-
-  // Apply steps
-  try {
-    const steps = await db.getTemplateSteps(tpl.id)
-    form.steps = steps.map(s => ({ title: s.title, completed: false }))
-  } catch {
-    form.steps = []
-  }
-
-  // Apply locked fields
-  let locked = []
-  try {
-    locked = JSON.parse(tpl.locked_fields || '[]')
-  } catch {
-    locked = []
-  }
-  emit('update:lockedFields', locked)
 }
 
 function submit() {
