@@ -133,6 +133,8 @@
             :key="todo.id"
             :todo="todo"
             :show-date="true"
+            :drag-mousedown="onHistMouseDown"
+            :dragging="histDragState && histDragState.todo.id === todo.id"
             @toggle-status="handleToggle"
             @edit="handleEdit"
             @delete="handleDelete"
@@ -188,6 +190,8 @@
             v-for="todo in group.todos"
             :key="todo.id"
             :todo="todo"
+            :drag-mousedown="onHistMouseDown"
+            :dragging="histDragState && histDragState.todo.id === todo.id"
             @toggle="handleToggle"
             @edit="handleEdit"
             @delete="handleDelete"
@@ -295,11 +299,67 @@
         </div>
       </div>
     </div>
+
+    <!-- Historical Drag Ghost Element -->
+    <Teleport to="body">
+      <div
+        v-if="histDragState && histDragState.active"
+        data-drag-ghost
+        class="fixed z-[9999] pointer-events-none"
+        :style="{
+          left: histDragState.x + 'px',
+          top: histDragState.y + 'px',
+          transform: 'translate(-50%, -50%) rotate(3deg)',
+          opacity: 0.9
+        }"
+      >
+        <div class="flex items-start gap-3 p-3 rounded-xl border-2 border-primary bg-surface dark:bg-gray-800 shadow-2xl min-w-[250px] max-w-[320px]">
+          <div class="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center border-border dark:border-gray-600"></div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium leading-tight text-content dark:text-gray-100 truncate">{{ histDragState.todo.title }}</p>
+            <div class="flex items-center gap-2 mt-1.5">
+              <span class="inline-flex items-center gap-1 text-xs" :class="getHistPriorityColor(histDragState.todo.priority)">
+                <span class="w-1.5 h-1.5 rounded-full" :class="getHistPriorityDot(histDragState.todo.priority)"></span>
+                {{ getHistPriorityLabel(histDragState.todo.priority) }}
+              </span>
+              <span
+                v-for="tag in histDragState.todo.tags || []"
+                :key="tag.id"
+                class="tag-badge text-xs px-1.5 py-0.5 rounded"
+                :style="{ backgroundColor: tag.color + '20', color: tag.color }"
+              >
+                {{ tag.name }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Historical Drag Warning Dialog -->
+    <div v-if="showHistWarning" class="fixed inset-0 z-[10000] flex items-center justify-center">
+      <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
+      <div class="relative bg-surface dark:bg-gray-800 rounded-2xl shadow-2xl border border-border dark:border-gray-700 p-6 w-96 mx-4">
+        <h3 class="text-lg font-semibold text-content dark:text-gray-100 mb-2">将历史待办移入今日</h3>
+        <p class="text-sm text-content-secondary dark:text-gray-400 mb-4">
+          此操作会将「{{ histDragTodo?.title }}」的日期重置为今天（{{ store.currentDate }}），并设置状态为「{{ getHistStatusLabel(histDragTargetStatus) }}」。
+          该操作不可逆，原始日期的记录将被修改。
+        </p>
+        <label class="flex items-center gap-2 mb-5 cursor-pointer select-none">
+          <input type="checkbox" v-model="skipHistWarning" class="w-4 h-4 rounded border-border dark:border-gray-600" />
+          <span class="text-sm text-content-secondary dark:text-gray-400">不再提醒</span>
+        </label>
+        <div class="flex justify-end gap-3">
+          <button @click="cancelHistDrag" class="btn-secondary">取消</button>
+          <button @click="confirmHistDrag" class="btn-primary">确认移动</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useAppStore } from '../stores/app'
 import * as db from '../utils/db'
 import TodoItem from '../components/TodoItem.vue'
@@ -321,6 +381,14 @@ const showTemplatePicker = ref(false)
 const templateList = ref([])
 const templateLoading = ref(false)
 const modalLockedFields = ref([])
+
+// Historical drag state
+const histDragState = ref(null) // { todo, startX, startY, x, y, active, targetStatus }
+const histDragTodo = ref(null)
+const histDragTargetStatus = ref('pending')
+const showHistWarning = ref(false)
+const skipHistWarning = ref(false)
+const HIST_DRAG_THRESHOLD = 5
 
 const pendingTodos = computed(() =>
   store.currentTodos.filter((t) => t.status === 'pending')
@@ -377,6 +445,14 @@ onMounted(async () => {
   await store.loadIncompleteTodos()
   await store.loadOverviewStats()
 
+  // Load skip warning preference
+  try {
+    const skip = await db.getSetting('skip_historical_drag_warning')
+    if (skip === 'true') skipHistWarning.value = true
+  } catch (e) {
+    console.error('Failed to load skip warning setting:', e)
+  }
+
   // Check if we're returning from mini mode with pending data
   if (store.pendingQuickAdd) {
     const data = store.pendingQuickAdd
@@ -394,6 +470,12 @@ onMounted(async () => {
     showFullModal.value = true
     store.pendingEditTodo = null
   }
+})
+
+onUnmounted(() => {
+  // Clean up any lingering drag listeners
+  document.removeEventListener('mousemove', onHistMouseMove)
+  document.removeEventListener('mouseup', onHistMouseUp)
 })
 
 // Watch for mini mode → full mode transitions
@@ -599,5 +681,150 @@ function toggleAllColumns() {
   window.dispatchEvent(new CustomEvent('kanban-collapse-all', {
     detail: { collapsed: allCollapsed.value }
   }))
+}
+
+// ─── Historical Todo Drag & Drop ──────────────────────
+function onHistMouseDown(e, todo) {
+  // Don't start drag from buttons
+  const tag = e.target.tagName
+  if (tag === 'BUTTON' || e.target.closest('button')) return
+  if (e.button !== 0) return
+  e.preventDefault()
+
+  histDragState.value = {
+    todo,
+    startX: e.clientX,
+    startY: e.clientY,
+    x: e.clientX,
+    y: e.clientY,
+    active: false,
+    targetStatus: 'pending',
+  }
+
+  document.addEventListener('mousemove', onHistMouseMove)
+  document.addEventListener('mouseup', onHistMouseUp)
+}
+
+function onHistMouseMove(e) {
+  if (!histDragState.value) return
+
+  const dx = e.clientX - histDragState.value.startX
+  const dy = e.clientY - histDragState.value.startY
+
+  if (!histDragState.value.active && (Math.abs(dx) > HIST_DRAG_THRESHOLD || Math.abs(dy) > HIST_DRAG_THRESHOLD)) {
+    histDragState.value.active = true
+  }
+
+  if (histDragState.value.active) {
+    histDragState.value.x = e.clientX
+    histDragState.value.y = e.clientY
+    histDragState.value.targetStatus = detectHoverColumn(e.clientX, e.clientY)
+  }
+}
+
+function detectHoverColumn(x, y) {
+  // Temporarily hide ghost so elementFromPoint can see through
+  const ghostEls = document.querySelectorAll('[data-drag-ghost]')
+  ghostEls.forEach(el => { el.style.display = 'none' })
+
+  const el = document.elementFromPoint(x, y)
+
+  // Restore ghost
+  ghostEls.forEach(el => { el.style.display = '' })
+
+  if (!el) return 'pending'
+
+  let target = el
+  while (target && target !== document.body) {
+    if (target.hasAttribute && target.hasAttribute('data-kanban-column')) {
+      const titleEl = target.querySelector('.text-sm.font-semibold')
+      if (titleEl) {
+        const colTitle = titleEl.textContent.trim()
+        const statusMap = { '待处理': 'pending', '进行中': 'in_progress', '已完成': 'done' }
+        return statusMap[colTitle] || 'pending'
+      }
+    }
+    target = target.parentElement
+  }
+
+  return 'pending'
+}
+
+function onHistMouseUp(e) {
+  document.removeEventListener('mousemove', onHistMouseMove)
+  document.removeEventListener('mouseup', onHistMouseUp)
+
+  if (!histDragState.value) return
+
+  const wasActive = histDragState.value.active
+  const todo = histDragState.value.todo
+  const targetStatus = detectHoverColumn(e.clientX, e.clientY)
+
+  // Clear drag state
+  histDragState.value = null
+
+  if (!wasActive) return
+
+  // Store for warning dialog
+  histDragTodo.value = todo
+  histDragTargetStatus.value = targetStatus
+
+  // Check if we should show warning
+  if (skipHistWarning.value) {
+    executeHistoricalMove()
+  } else {
+    showHistWarning.value = true
+  }
+}
+
+async function confirmHistDrag() {
+  // Save skip preference if checked
+  if (skipHistWarning.value) {
+    try {
+      await db.setSetting('skip_historical_drag_warning', 'true')
+    } catch (e) {
+      console.error('Failed to save skip warning setting:', e)
+    }
+  }
+
+  showHistWarning.value = false
+  await executeHistoricalMove()
+}
+
+function cancelHistDrag() {
+  showHistWarning.value = false
+  histDragTodo.value = null
+  // Reset skip if user unchecked but then cancelled
+}
+
+async function executeHistoricalMove() {
+  const todo = histDragTodo.value
+  const targetStatus = histDragTargetStatus.value
+  histDragTodo.value = null
+
+  if (!todo) return
+
+  await store.moveHistoricalTodoToToday(todo.id, targetStatus)
+}
+
+// Helper functions for ghost display
+function getHistPriorityColor(p) {
+  const map = { high: 'text-red-500', medium: 'text-amber-500', low: 'text-green-500' }
+  return map[p] || 'text-amber-500'
+}
+
+function getHistPriorityDot(p) {
+  const map = { high: 'bg-red-500', medium: 'bg-amber-500', low: 'bg-green-500' }
+  return map[p] || 'bg-amber-500'
+}
+
+function getHistPriorityLabel(p) {
+  const map = { high: '高优先级', medium: '中优先级', low: '低优先级' }
+  return map[p] || '中优先级'
+}
+
+function getHistStatusLabel(status) {
+  const map = { pending: '待处理', in_progress: '进行中', done: '已完成' }
+  return map[status] || '待处理'
 }
 </script>

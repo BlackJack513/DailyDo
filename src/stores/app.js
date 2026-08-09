@@ -524,6 +524,16 @@ export const useAppStore = defineStore('app', () => {
     return await db.getPriorityDistribution(startDate, endDate)
   }
 
+  // ─── Historical Todo Move to Today ──────────────────
+  async function moveHistoricalTodoToToday(todoId, newStatus) {
+    const todo = incompleteTodos.value.find(t => t.id === todoId)
+    if (!todo) return
+    const today = formatDate(new Date())
+    await updateTodo({ ...todo, todo_date: today, status: newStatus })
+    await loadOverviewStats()
+    await loadIncompleteTodos()
+  }
+
   // ─── Background ─────────────────────────────────────
   async function setBackgroundImage(path) {
     backgroundImage.value = path
@@ -582,6 +592,7 @@ export const useAppStore = defineStore('app', () => {
     setBackgroundImage,
     clearBackgroundImage,
     saveSidebarConfig,
+    moveHistoricalTodoToToday,
   }
 })
 

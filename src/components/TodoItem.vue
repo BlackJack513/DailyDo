@@ -1,8 +1,12 @@
 <template>
   <div
     @dblclick="$emit('detail', { todo, x: $event.clientX, y: $event.clientY })"
+    @mousedown="dragMousedown ? dragMousedown($event, todo) : undefined"
     class="group flex items-start gap-3 p-3 rounded-xl border border-border dark:border-gray-700 hover:border-primary/30 dark:hover:border-indigo-500/30 transition-all duration-150 bg-surface dark:bg-gray-800"
-    :class="{ 'opacity-60': todo.status === 'done' }"
+    :class="[
+      { 'opacity-60': todo.status === 'done' },
+      dragging ? 'opacity-40 cursor-grabbing select-none' : (dragMousedown ? 'cursor-grab select-none' : '')
+    ]"
   >
     <!-- Status toggle -->
     <button
@@ -95,6 +99,8 @@ import { computed } from 'vue'
 const props = defineProps({
   todo: { type: Object, required: true },
   showDate: { type: Boolean, default: false },
+  dragMousedown: { type: Function, default: null },
+  dragging: { type: Boolean, default: false },
 })
 
 defineEmits(['toggle-status', 'edit', 'delete', 'detail'])
