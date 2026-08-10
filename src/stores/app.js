@@ -39,6 +39,7 @@ export const useAppStore = defineStore('app', () => {
     { id: 'today', visible: true },
     { id: 'calendar', visible: true },
     { id: 'analytics', visible: true },
+    { id: 'gantt', visible: true },
     { id: 'tags', visible: true },
     { id: 'recurrences', visible: true },
     { id: 'templates', visible: true },

@@ -207,6 +207,19 @@ const ChartIcon = {
   },
 }
 
+const GanttIcon = {
+  render() {
+    return h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
+      h('path', {
+        'stroke-linecap': 'round',
+        'stroke-linejoin': 'round',
+        'stroke-width': '2',
+        d: 'M3 6h6m2 0h10M3 12h10m2 0h6M3 18h4m2 0h12',
+      }),
+    ])
+  },
+}
+
 const TagIcon = {
   render() {
     return h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
@@ -308,6 +321,7 @@ const allNavItems = {
   today: { path: '/today', label: '待办列表', icon: TodayIcon, id: 'today' },
   calendar: { path: '/calendar', label: '日历视图', icon: CalendarIcon, id: 'calendar' },
   analytics: { path: '/analytics', label: '统计分析', icon: ChartIcon, id: 'analytics' },
+  gantt: { path: '/gantt', label: '甘特图', icon: GanttIcon, id: 'gantt' },
   tags: { path: '/tags', label: '标签管理', icon: TagIcon, id: 'tags' },
   recurrences: { path: '/recurrences', label: '周期任务', icon: RecurrenceIcon, id: 'recurrences' },
   templates: { path: '/templates', label: '待办模板', icon: TemplateIcon, id: 'templates' },

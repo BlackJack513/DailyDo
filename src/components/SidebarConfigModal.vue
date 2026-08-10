@@ -204,6 +204,21 @@ const moduleMeta = {
         ]),
     },
   },
+  gantt: {
+    label: '甘特图',
+    color: '#06b6d4',
+    icon: {
+      render: () =>
+        h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
+          h('path', {
+            'stroke-linecap': 'round',
+            'stroke-linejoin': 'round',
+            'stroke-width': '2',
+            d: 'M3 6h6m2 0h10M3 12h10m2 0h6M3 18h4m2 0h12',
+          }),
+        ]),
+    },
+  },
   tags: {
     label: '标签管理',
     color: '#f59e0b',
@@ -342,6 +357,7 @@ function resetDefault() {
     { id: 'today', visible: true },
     { id: 'calendar', visible: true },
     { id: 'analytics', visible: true },
+    { id: 'gantt', visible: true },
     { id: 'tags', visible: true },
     { id: 'recurrences', visible: true },
     { id: 'templates', visible: true },

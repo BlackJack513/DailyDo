@@ -105,6 +105,7 @@ fn main() {
             commands::clear_completed_attachments,
             commands::get_activity_logs_by_todo_id,
             commands::add_activity_log,
+            commands::get_gantt_data,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

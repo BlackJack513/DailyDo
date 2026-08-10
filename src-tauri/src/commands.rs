@@ -1637,3 +1637,82 @@ pub fn add_activity_log(state: State<AppState>, log: ActivityLog) -> Result<i64,
     ).map_err(|e| e.to_string())?;
     Ok(db.last_insert_rowid())
 }
+
+// ─── Gantt Chart Commands ──────────────────────────────────────
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct GanttTodo {
+    pub id: i64,
+    pub title: String,
+    pub status: Option<String>,
+    pub priority: Option<String>,
+    pub created_at: Option<String>,
+    pub completed_at: Option<String>,
+    pub logs: Vec<ActivityLog>,
+}
+
+#[tauri::command]
+pub fn get_gantt_data(state: State<AppState>, date: String) -> Result<Vec<GanttTodo>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    // Get all non-deleted todos for the given date
+    let mut todo_stmt = db.prepare(
+        "SELECT id, title, status, priority, created_at, completed_at FROM todos WHERE todo_date=?1 AND deleted_at IS NULL ORDER BY created_at ASC"
+    ).map_err(|e| e.to_string())?;
+
+    struct TodoRow {
+        id: i64,
+        title: String,
+        status: Option<String>,
+        priority: Option<String>,
+        created_at: Option<String>,
+        completed_at: Option<String>,
+    }
+
+    let todo_rows: Vec<TodoRow> = todo_stmt.query_map(params![date], |row| {
+        Ok(TodoRow {
+            id: row.get(0)?,
+            title: row.get(1)?,
+            status: row.get(2)?,
+            priority: row.get(3)?,
+            created_at: row.get(4)?,
+            completed_at: row.get(5)?,
+        })
+    }).map_err(|e| e.to_string())?
+    .filter_map(|r| r.ok())
+    .collect();
+
+    // For each todo, fetch its activity logs
+    let mut result = Vec::new();
+    for todo in todo_rows {
+        let mut log_stmt = db.prepare(
+            "SELECT id, todo_id, action, old_status, new_status, detail, created_at FROM todo_activity_log WHERE todo_id=?1 ORDER BY created_at ASC"
+        ).map_err(|e| e.to_string())?;
+
+        let logs: Vec<ActivityLog> = log_stmt.query_map(params![todo.id], |row| {
+            Ok(ActivityLog {
+                id: row.get(0)?,
+                todo_id: row.get(1)?,
+                action: row.get(2)?,
+                old_status: row.get(3)?,
+                new_status: row.get(4)?,
+                detail: row.get(5)?,
+                created_at: row.get(6)?,
+            })
+        }).map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+        result.push(GanttTodo {
+            id: todo.id,
+            title: todo.title,
+            status: todo.status,
+            priority: todo.priority,
+            created_at: todo.created_at,
+            completed_at: todo.completed_at,
+            logs,
+        });
+    }
+
+    Ok(result)
+}

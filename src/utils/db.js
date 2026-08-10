@@ -198,6 +198,11 @@ export async function showAttachmentInExplorer(filePath) {
   return await invoke('show_attachment_in_explorer', { filePath })
 }
 
+// Gantt chart
+export async function getGanttData(date) {
+  return await invoke('get_gantt_data', { date })
+}
+
 // Activity log
 export async function getActivityLogsByTodoId(todoId) {
   return await invoke('get_activity_logs_by_todo_id', { todoId })

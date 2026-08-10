@@ -6,6 +6,7 @@ const routes = [
   { path: '/today', name: 'today', component: TodayView },
   { path: '/calendar', name: 'calendar', component: () => import('../views/CalendarView.vue') },
   { path: '/analytics', name: 'analytics', component: () => import('../views/AnalyticsView.vue') },
+  { path: '/gantt', name: 'gantt', component: () => import('../views/GanttView.vue') },
   { path: '/tags', name: 'tags', component: () => import('../views/TagsView.vue') },
   { path: '/recurrences', name: 'recurrences', component: () => import('../views/RecurrencesView.vue') },
   { path: '/templates', name: 'templates', component: () => import('../views/TemplatesView.vue') },
