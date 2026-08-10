@@ -20,24 +20,45 @@
         {{ subMessage }}
       </p>
 
-      <!-- Countdown card -->
-      <div v-if="!isPayday" class="bg-white/80 dark:bg-gray-800/80 backdrop-blur rounded-2xl shadow-lg border border-amber-200 dark:border-gray-700 px-8 py-6 text-center mb-8">
-        <p class="text-sm text-content-tertiary dark:text-gray-500 mb-1">距离发薪日还有</p>
-        <div class="flex items-baseline justify-center gap-1">
-          <span class="text-5xl font-bold text-amber-500">{{ daysUntilPayday }}</span>
-          <span class="text-lg text-content-secondary dark:text-gray-400 ml-1">天</span>
+      <!-- Countdown cards row -->
+      <div class="flex flex-wrap justify-center gap-4 mb-8 w-full max-w-xl">
+        <!-- Payday countdown card -->
+        <div v-if="!isPayday" class="flex-1 min-w-[200px] bg-white/80 dark:bg-gray-800/80 backdrop-blur rounded-2xl shadow-lg border border-amber-200 dark:border-gray-700 px-6 py-5 text-center">
+          <div class="flex items-center justify-center gap-1.5 mb-2">
+            <span class="text-lg">💰</span>
+            <p class="text-sm text-content-tertiary dark:text-gray-500">距离发薪日还有</p>
+          </div>
+          <div class="flex items-baseline justify-center gap-1">
+            <span class="text-5xl font-bold text-amber-500">{{ daysUntilPayday }}</span>
+            <span class="text-lg text-content-secondary dark:text-gray-400 ml-1">天</span>
+          </div>
+          <p class="text-xs text-content-tertiary dark:text-gray-500 mt-2">
+            每月 {{ paydayDay }} 号发工资
+          </p>
         </div>
-        <p class="text-sm text-content-tertiary dark:text-gray-500 mt-2">
-          每月 {{ paydayDay }} 号发工资 · 加油！
-        </p>
-      </div>
 
-      <!-- Payday celebration card -->
-      <div v-else class="bg-white/80 dark:bg-gray-800/80 backdrop-blur rounded-2xl shadow-lg border border-green-200 dark:border-gray-700 px-8 py-6 text-center mb-8">
-        <p class="text-2xl font-bold text-green-500 mb-1">今天就是发薪日！</p>
-        <p class="text-sm text-content-secondary dark:text-gray-400">
-          辛苦了一个月，是时候犒劳自己了
-        </p>
+        <!-- Payday celebration card -->
+        <div v-else class="flex-1 min-w-[200px] bg-white/80 dark:bg-gray-800/80 backdrop-blur rounded-2xl shadow-lg border border-green-200 dark:border-gray-700 px-6 py-5 text-center">
+          <p class="text-xl font-bold text-green-500 mb-1">今天就是发薪日！</p>
+          <p class="text-xs text-content-secondary dark:text-gray-400">
+            辛苦了一个月，劳自己吧
+          </p>
+        </div>
+
+        <!-- Rest day countdown card -->
+        <div class="flex-1 min-w-[200px] bg-white/80 dark:bg-gray-800/80 backdrop-blur rounded-2xl shadow-lg border border-blue-200 dark:border-gray-700 px-6 py-5 text-center">
+          <div class="flex items-center justify-center gap-1.5 mb-2">
+            <span class="text-lg">🏖️</span>
+            <p class="text-sm text-content-tertiary dark:text-gray-500">距离下一个休息日还有</p>
+          </div>
+          <div class="flex items-baseline justify-center gap-1">
+            <span class="text-5xl font-bold text-blue-500">{{ daysUntilRestDay }}</span>
+            <span class="text-lg text-content-secondary dark:text-gray-400 ml-1">天</span>
+          </div>
+          <p class="text-xs text-content-tertiary dark:text-gray-500 mt-2">
+            {{ restDayLabel }}
+          </p>
+        </div>
       </div>
 
       <!-- Encouragement tips -->
@@ -52,7 +73,7 @@
       </div>
     </div>
 
-    <!-- Payday setting button (bottom-right corner) -->
+    <!-- Settings button (bottom-right corner) -->
     <button
       @click="showSettings = true"
       class="absolute bottom-5 right-5 z-30 flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/80 dark:bg-gray-800/80 backdrop-blur border border-amber-200/60 dark:border-gray-600/60 text-content-secondary dark:text-gray-400 hover:text-amber-600 hover:border-amber-300 dark:hover:text-amber-400 transition-all shadow-md hover:shadow-lg text-sm font-medium"
@@ -103,15 +124,24 @@ const settingsDay = ref(5)
 const confettiActive = ref(true)
 let animFrameId = null
 
-// ─── Payday calculation ─────────────────────────────────
+// ─── Date helpers ───────────────────────────────────────
 const today = new Date()
-const todayStr = computed(() => {
-  const y = today.getFullYear()
-  const m = String(today.getMonth() + 1).padStart(2, '0')
-  const d = String(today.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
-})
+const todayStr = computed(() => formatDate(today))
 
+function formatDate(d) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+function addDays(d, n) {
+  const result = new Date(d)
+  result.setDate(result.getDate() + n)
+  return result
+}
+
+// ─── Payday calculation ─────────────────────────────────
 const isPayday = computed(() => today.getDate() === paydayDay.value)
 
 const daysUntilPayday = computed(() => {
@@ -119,14 +149,51 @@ const daysUntilPayday = computed(() => {
   const day = paydayDay.value
   let target = new Date(now.getFullYear(), now.getMonth(), day)
   if (target <= now) {
-    // Next month's payday
     target = new Date(now.getFullYear(), now.getMonth() + 1, day)
   }
   const diff = Math.ceil((target - now) / (1000 * 60 * 60 * 24))
   return diff
 })
 
-// ─── Messages ───────────────────────────────────────────
+// ─── Rest day calculation ───────────────────────────────
+const daysUntilRestDay = ref(0)
+const restDayLabel = ref('')
+const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+
+async function calcNextRestDay() {
+  const now = new Date()
+  // Load calendar data for current and next month
+  const year = now.getFullYear()
+  const month = now.getMonth() + 1
+  try {
+    await store.loadCalendarDays(year, month)
+    const nextMonth = month === 12 ? 1 : month + 1
+    const nextYear = month === 12 ? year + 1 : year
+    await store.loadCalendarDays(nextYear, nextMonth)
+  } catch (e) {
+    console.error('Failed to load calendar days:', e)
+  }
+
+  // Search from tomorrow up to 14 days ahead
+  for (let i = 1; i <= 14; i++) {
+    const d = addDays(now, i)
+    const dateStr = formatDate(d)
+    const dayType = store.getDayType(dateStr)
+    if (dayType === 'rest') {
+      daysUntilRestDay.value = i
+      const m = d.getMonth() + 1
+      const day = d.getDate()
+      restDayLabel.value = `${m}月${day}日 ${weekdays[d.getDay()]}`
+      return
+    }
+  }
+
+  // Fallback: if no rest day found in 14 days (shouldn't happen normally)
+  daysUntilRestDay.value = 0
+  restDayLabel.value = '近期无休息日'
+}
+
+// ─── Messages ──────────────────────────────────────────
 const mainHeading = computed(() => {
   if (isPayday.value) {
     return '发工资啦！'
@@ -154,7 +221,6 @@ const tips = computed(() => {
     '今天也要开心', '努力会有回报', '你很棒', '坚持就是胜利',
     '劳逸结合', '保持好心情', '专注当下', '享受过程',
   ]
-  // Pick 4 random tips
   const shuffled = [...allTips].sort(() => Math.random() - 0.5)
   return shuffled.slice(0, 4)
 })
@@ -200,9 +266,9 @@ function drawConfetti() {
   for (const p of particles) {
     p.x += p.vx
     p.y += p.vy
-    p.vy += 0.04 // gravity
+    p.vy += 0.04
     p.rotation += p.rotationSpeed
-    p.vx *= 0.99 // air resistance
+    p.vx *= 0.99
 
     if (p.y > h + 20) {
       p.opacity -= 0.02
@@ -278,16 +344,15 @@ async function savePaydayDay() {
   paydayDay.value = day
   await db.setSetting('payday_day', JSON.stringify(day))
   showSettings.value = false
-  // Re-trigger confetti on save
   stopConfetti()
   setTimeout(startConfetti, 100)
 }
 
-// ─── Lifecycle ──────────────────────────────────────────
-onMounted(() => {
-  loadPaydayDay().then(() => {
-    startConfetti()
-  })
+// ─── Lifecycle ─────────────────────────────────────────
+onMounted(async () => {
+  await loadPaydayDay()
+  await calcNextRestDay()
+  startConfetti()
   window.addEventListener('resize', resizeCanvas)
 })
 
