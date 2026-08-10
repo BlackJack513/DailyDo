@@ -98,16 +98,25 @@ function goToday() {
   selectedDate.value = formatDate(new Date())
 }
 
-// Parse "YYYY-MM-DD HH:MM:SS" to minutes since midnight
+// Parse "YYYY-MM-DDTHH:MM:SS" or "YYYY-MM-DD HH:MM:SS" to minutes since midnight
 function toMinutes(ts) {
   if (!ts) return null
-  const parts = ts.split(' ')
-  if (parts.length < 2) return null
-  const timeParts = parts[1].split(':')
-  return parseInt(timeParts[0]) * 60 + parseInt(timeParts[1])
+  // Support both "T" and space separators
+  const tIdx = ts.indexOf('T')
+  const spaceIdx = ts.indexOf(' ')
+  const sepIdx = tIdx >= 0 ? tIdx : spaceIdx
+  if (sepIdx < 0) return null
+  const timeStr = ts.substring(sepIdx + 1)
+  const timeParts = timeStr.split(':')
+  if (timeParts.length < 2) return null
+  const h = parseInt(timeParts[0], 10)
+  const m = parseInt(timeParts[1], 10)
+  if (isNaN(h) || isNaN(m)) return null
+  return h * 60 + m
 }
 
 // Build time segments from activity logs
+// Returns null if the todo has no usable time data (skip it)
 function buildSegments(todo) {
   const segments = []
   const logs = todo.logs || []
@@ -116,16 +125,25 @@ function buildSegments(todo) {
   const statusLogs = logs.filter(l => l.action === 'created' || l.action === 'status_changed')
 
   if (statusLogs.length === 0) {
-    // No activity data — estimate from created_at and current status
+    // No activity data — estimate from created_at and completed_at
     const startMin = toMinutes(todo.created_at)
-    if (startMin !== null) {
-      const endMin = todo.status === 'done' ? toMinutes(todo.completed_at) ?? startMin + 60 : toMinutes(todo.created_at) + 60
-      segments.push({
-        start: startMin,
-        end: Math.min(endMin, 1440),
-        status: todo.status || 'pending',
-      })
+    if (startMin === null) {
+      // No usable time data at all — skip this todo
+      return null
     }
+    let endMin = null
+    if (todo.status === 'done' && todo.completed_at) {
+      endMin = toMinutes(todo.completed_at)
+    }
+    if (endMin === null) {
+      // For non-done todos without completed_at, use created_at + 60min as fallback
+      endMin = startMin + 60
+    }
+    segments.push({
+      start: Math.min(startMin, 1440),
+      end: Math.min(Math.max(endMin, startMin + 1), 1440),
+      status: todo.status || 'pending',
+    })
     return segments
   }
 
@@ -164,13 +182,13 @@ function buildSegments(todo) {
     if (endMin === null) endMin = startMin + 30 // fallback: 30 min duration
 
     segments.push({
-      start: startMin,
-      end: Math.min(endMin, 1440),
+      start: Math.min(startMin, 1440),
+      end: Math.min(Math.max(endMin, startMin + 1), 1440),
       status,
     })
   }
 
-  return segments
+  return segments.length > 0 ? segments : null
 }
 
 function renderChart() {
@@ -184,20 +202,18 @@ function renderChart() {
   const subTextColor = isDark ? '#9ca3af' : '#64748b'
   const borderColor = isDark ? '#374151' : '#e5e7eb'
 
-  // Prepare data: each todo is a category on yAxis
-  const categories = ganttData.value.map(t => {
-    // Truncate long titles
-    return t.title.length > 16 ? t.title.slice(0, 15) + '...' : t.title
-  })
-
-  // Build custom series data
+  // Build custom series data — skip todos with no valid time data
   const renderData = []
+  const validTodos = []
   ganttData.value.forEach((todo, idx) => {
     const segments = buildSegments(todo)
+    if (!segments) return // skip todos without usable time data
+    const displayIdx = validTodos.length
+    validTodos.push(todo)
     segments.forEach(seg => {
       renderData.push({
         name: todo.title,
-        value: [idx, seg.start, seg.end, seg.status],
+        value: [displayIdx, seg.start, seg.end, seg.status],
         itemStyle: {
           color: statusColors[seg.status] || '#94a3b8',
         },
@@ -205,11 +221,22 @@ function renderChart() {
     })
   })
 
+  // If no todos have valid time data, show empty state
+  if (validTodos.length === 0) {
+    ganttData.value = []
+    return
+  }
+
+  // Prepare yAxis categories from valid todos only
+  const categories = validTodos.map(t => {
+    return t.title.length > 16 ? t.title.slice(0, 15) + '...' : t.title
+  })
+
   const option = {
     tooltip: {
       formatter(params) {
         const [catIdx, startMin, endMin, status] = params.value
-        const title = ganttData.value[catIdx]?.title || ''
+        const title = validTodos[catIdx]?.title || ''
         const statusLabels = { pending: '待处理', in_progress: '进行中', done: '已完成', blocked: '等待中' }
         const startH = Math.floor(startMin / 60)
         const startM = startMin % 60
@@ -321,7 +348,15 @@ function renderChart() {
 async function loadData() {
   loading.value = true
   try {
-    ganttData.value = await db.getGanttData(selectedDate.value)
+    const rawData = await db.getGanttData(selectedDate.value)
+    // Filter to only todos that have valid time data (created_at parseable)
+    ganttData.value = rawData.filter(todo => {
+      const startMin = toMinutes(todo.created_at)
+      if (startMin !== null) return true
+      // Also keep if has activity logs with parseable timestamps
+      const logs = todo.logs || []
+      return logs.some(l => toMinutes(l.created_at) !== null)
+    })
     await nextTick()
     renderChart()
   } catch (e) {
