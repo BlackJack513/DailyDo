@@ -34,18 +34,21 @@
     </div>
 
     <!-- Chart -->
-    <div class="px-8 pb-6 flex-1">
-      <div class="card h-full">
-        <div v-if="loading" class="flex items-center justify-center h-full">
+    <div class="px-8 pb-6 flex-1 min-h-0">
+      <div class="card h-full relative">
+        <!-- Chart container — always in DOM so ECharts always has dimensions -->
+        <div ref="chartRef" class="w-full h-full"></div>
+        <!-- Loading overlay -->
+        <div v-if="loading" class="absolute inset-0 flex items-center justify-center bg-surface/80 rounded-lg z-10">
           <div class="text-content-tertiary text-sm">加载中...</div>
         </div>
-        <div v-else-if="ganttData.length === 0" class="flex flex-col items-center justify-center h-full gap-3">
+        <!-- Empty state overlay -->
+        <div v-else-if="showEmpty" class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-surface/80 rounded-lg z-10">
           <svg class="w-16 h-16 text-content-tertiary/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
           </svg>
           <p class="text-content-tertiary text-sm">当日暂无任务数据</p>
         </div>
-        <div v-else ref="chartRef" class="w-full" :style="{ height: chartHeight + 'px' }"></div>
       </div>
     </div>
   </div>
@@ -80,11 +83,6 @@ const statusColors = {
   done: '#10b981',
   blocked: '#f59e0b',
 }
-
-const chartHeight = computed(() => {
-  const rows = Math.max(ganttData.value.length, 1)
-  return Math.max(300, rows * 48 + 80)
-})
 
 function formatDate(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -192,161 +190,184 @@ function buildSegments(todo) {
 }
 
 function renderChart() {
-  if (!chartRef.value || ganttData.value.length === 0) return
+  try {
+    if (!chartRef.value) return
+    // Check container has actual dimensions
+    const container = chartRef.value
+    if (container.clientWidth === 0 || container.clientHeight === 0) {
+      console.warn('GanttView: chart container has zero dimensions, skipping render')
+      return
+    }
 
-  if (chart) chart.dispose()
-  chart = echarts.init(chartRef.value)
+    if (chart) {
+      chart.dispose()
+      chart = null
+    }
+    chart = echarts.init(chartRef.value)
 
-  const isDark = store.theme === 'dark'
-  const textColor = isDark ? '#d1d5db' : '#374151'
-  const subTextColor = isDark ? '#9ca3af' : '#64748b'
-  const borderColor = isDark ? '#374151' : '#e5e7eb'
+    const isDark = store.theme === 'dark'
+    const textColor = isDark ? '#d1d5db' : '#374151'
+    const subTextColor = isDark ? '#9ca3af' : '#64748b'
+    const borderColor = isDark ? '#374151' : '#e5e7eb'
 
-  // Build custom series data — skip todos with no valid time data
-  const renderData = []
-  const validTodos = []
-  ganttData.value.forEach((todo, idx) => {
-    const segments = buildSegments(todo)
-    if (!segments) return // skip todos without usable time data
-    const displayIdx = validTodos.length
-    validTodos.push(todo)
-    segments.forEach(seg => {
-      renderData.push({
-        name: todo.title,
-        value: [displayIdx, seg.start, seg.end, seg.status],
-        itemStyle: {
-          color: statusColors[seg.status] || '#94a3b8',
-        },
+    // Build custom series data — skip todos with no valid time data
+    const renderData = []
+    const validTodos = []
+    ganttData.value.forEach((todo, idx) => {
+      const segments = buildSegments(todo)
+      if (!segments) return // skip todos without usable time data
+      const displayIdx = validTodos.length
+      validTodos.push(todo)
+      segments.forEach(seg => {
+        renderData.push({
+          name: todo.title,
+          value: [displayIdx, seg.start, seg.end, seg.status],
+          itemStyle: {
+            color: statusColors[seg.status] || '#94a3b8',
+          },
+        })
       })
     })
-  })
 
-  // If no todos have valid time data, show empty state
-  if (validTodos.length === 0) {
-    ganttData.value = []
-    return
-  }
+    // If no todos have valid time data, show empty state via separate flag
+    if (validTodos.length === 0) {
+      showEmpty.value = true
+      chart.dispose()
+      chart = null
+      return
+    }
+    showEmpty.value = false
 
-  // Prepare yAxis categories from valid todos only
-  const categories = validTodos.map(t => {
-    return t.title.length > 16 ? t.title.slice(0, 15) + '...' : t.title
-  })
+    // Prepare yAxis categories from valid todos only
+    const categories = validTodos.map(t => {
+      return t.title.length > 16 ? t.title.slice(0, 15) + '...' : t.title
+    })
 
-  const option = {
-    tooltip: {
-      formatter(params) {
-        const [catIdx, startMin, endMin, status] = params.value
-        const title = validTodos[catIdx]?.title || ''
-        const statusLabels = { pending: '待处理', in_progress: '进行中', done: '已完成', blocked: '等待中' }
-        const startH = Math.floor(startMin / 60)
-        const startM = startMin % 60
-        const endH = Math.floor(endMin / 60)
-        const endM = endMin % 60
-        const duration = endMin - startMin
-        const durH = Math.floor(duration / 60)
-        const durM = duration % 60
-        return `<strong>${title}</strong><br/>
-          状态：${statusLabels[status] || status}<br/>
-          时间：${String(startH).padStart(2, '0')}:${String(startM).padStart(2, '0')} - ${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}<br/>
-          时长：${durH > 0 ? durH + '小时' : ''}${durM > 0 ? durM + '分钟' : (durH === 0 ? '不到1分钟' : '')}`
-      },
-    },
-    grid: {
-      left: 160,
-      right: 30,
-      top: 20,
-      bottom: 40,
-    },
-    xAxis: {
-      type: 'value',
-      min: 0,
-      max: 1440,
-      interval: 120,
-      axisLabel: {
-        formatter(val) {
-          const h = Math.floor(val / 60)
-          return `${String(h).padStart(2, '0')}:00`
+    const option = {
+      tooltip: {
+        formatter(params) {
+          const [catIdx, startMin, endMin, status] = params.value
+          const title = validTodos[catIdx]?.title || ''
+          const statusLabels = { pending: '待处理', in_progress: '进行中', done: '已完成', blocked: '等待中' }
+          const startH = Math.floor(startMin / 60)
+          const startM = startMin % 60
+          const endH = Math.floor(endMin / 60)
+          const endM = endMin % 60
+          const duration = endMin - startMin
+          const durH = Math.floor(duration / 60)
+          const durM = duration % 60
+          return `<strong>${title}</strong><br/>
+            状态：${statusLabels[status] || status}<br/>
+            时间：${String(startH).padStart(2, '0')}:${String(startM).padStart(2, '0')} - ${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}<br/>
+            时长：${durH > 0 ? durH + '小时' : ''}${durM > 0 ? durM + '分钟' : (durH === 0 ? '不到1分钟' : '')}`
         },
-        color: subTextColor,
-        fontSize: 11,
       },
-      splitLine: {
-        show: true,
-        lineStyle: { color: borderColor, type: 'dashed' },
+      grid: {
+        left: 160,
+        right: 30,
+        top: 20,
+        bottom: 40,
       },
-      axisLine: { lineStyle: { color: borderColor } },
-    },
-    yAxis: {
-      type: 'category',
-      data: categories,
-      inverse: true,
-      axisLabel: {
-        color: textColor,
-        fontSize: 12,
-        width: 140,
-        overflow: 'truncate',
+      xAxis: {
+        type: 'value',
+        min: 0,
+        max: 1440,
+        interval: 120,
+        axisLabel: {
+          formatter(val) {
+            const h = Math.floor(val / 60)
+            return `${String(h).padStart(2, '0')}:00`
+          },
+          color: subTextColor,
+          fontSize: 11,
+        },
+        splitLine: {
+          show: true,
+          lineStyle: { color: borderColor, type: 'dashed' },
+        },
+        axisLine: { lineStyle: { color: borderColor } },
       },
-      axisLine: { show: false },
-      axisTick: { show: false },
-      splitLine: { show: false },
-    },
-    series: [
-      {
-        type: 'custom',
-        renderItem(params, api) {
-          const catIdx = api.value(0)
-          const startMin = api.value(1)
-          const endMin = api.value(2)
+      yAxis: {
+        type: 'category',
+        data: categories,
+        inverse: true,
+        axisLabel: {
+          color: textColor,
+          fontSize: 12,
+          width: 140,
+          overflow: 'truncate',
+        },
+        axisLine: { show: false },
+        axisTick: { show: false },
+        splitLine: { show: false },
+      },
+      series: [
+        {
+          type: 'custom',
+          renderItem(params, api) {
+            const catIdx = api.value(0)
+            const startMin = api.value(1)
+            const endMin = api.value(2)
 
-          const start = api.coord([startMin, catIdx])
-          const end = api.coord([endMin, catIdx])
-          const height = 20
+            const start = api.coord([startMin, catIdx])
+            const end = api.coord([endMin, catIdx])
+            const height = 20
 
-          const rect = echarts.graphic.clipRectByRect(
-            {
-              x: start[0],
-              y: start[1] - height / 2,
-              width: Math.max(end[0] - start[0], 4),
-              height,
-            },
-            {
-              x: params.coordSys.x,
-              y: params.coordSys.y,
-              width: params.coordSys.width,
-              height: params.coordSys.height,
-            }
-          )
-
-          return (
-            rect && {
-              type: 'rect',
-              transition: ['shape'],
-              shape: rect,
-              style: api.style({
-                fill: api.visual('color'),
-                stroke: 'none',
-              }),
-              styleEmphasis: {
-                stroke: isDark ? '#fff' : '#000',
-                lineWidth: 1,
+            const rect = echarts.graphic.clipRectByRect(
+              {
+                x: start[0],
+                y: start[1] - height / 2,
+                width: Math.max(end[0] - start[0], 4),
+                height,
               },
-            }
-          )
-        },
-        encode: {
-          x: [1, 2],
-          y: 0,
-        },
-        data: renderData,
-      },
-    ],
-  }
+              {
+                x: params.coordSys.x,
+                y: params.coordSys.y,
+                width: params.coordSys.width,
+                height: params.coordSys.height,
+              }
+            )
 
-  chart.setOption(option)
+            return (
+              rect && {
+                type: 'rect',
+                transition: ['shape'],
+                shape: rect,
+                style: api.style({
+                  fill: api.visual('color'),
+                  stroke: 'none',
+                }),
+                styleEmphasis: {
+                  stroke: isDark ? '#fff' : '#000',
+                  lineWidth: 1,
+                },
+              }
+            )
+          },
+          encode: {
+            x: [1, 2],
+            y: 0,
+          },
+          data: renderData,
+        },
+      ],
+    }
+
+    chart.setOption(option)
+    // Force resize to ensure chart fills container
+    setTimeout(() => {
+      if (chart) chart.resize()
+    }, 50)
+  } catch (e) {
+    console.error('GanttView renderChart error:', e)
+  }
 }
+
+const showEmpty = ref(false)
 
 async function loadData() {
   loading.value = true
+  showEmpty.value = false
   try {
     const rawData = await db.getGanttData(selectedDate.value)
     // Filter to only todos that have valid time data (created_at parseable)
@@ -357,12 +378,28 @@ async function loadData() {
       const logs = todo.logs || []
       return logs.some(l => toMinutes(l.created_at) !== null)
     })
+
+    // Set loading false FIRST so overlay is removed before rendering
+    loading.value = false
+
+    if (ganttData.value.length === 0) {
+      showEmpty.value = true
+      return
+    }
+
+    // Wait for Vue to remove the overlay and update DOM
     await nextTick()
+    // Double requestAnimationFrame to ensure browser has completed layout
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
     renderChart()
+    // Extra resize after a short delay as safety net
+    setTimeout(() => {
+      if (chart) chart.resize()
+    }, 100)
   } catch (e) {
     console.error('Failed to load gantt data:', e)
     ganttData.value = []
-  } finally {
+    showEmpty.value = true
     loading.value = false
   }
 }
