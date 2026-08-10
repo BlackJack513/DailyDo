@@ -228,7 +228,6 @@
                 class="flex-1 input-field py-1.5 text-sm"
                 placeholder="输入步骤内容..."
                 :disabled="isLocked('steps')"
-                @keydown.enter.prevent="onStepEnter(index)"
               />
               <button
                 v-if="!isLocked('steps')"
@@ -455,17 +454,6 @@ function addStep() {
 
 function removeStep(index) {
   form.steps.splice(index, 1)
-}
-
-function onStepEnter(index) {
-  // If current step is empty, remove it; otherwise add a new step below
-  if (!form.steps[index].title.trim()) {
-    if (form.steps.length > 1) {
-      form.steps.splice(index, 1)
-    }
-  } else {
-    form.steps.splice(index + 1, 0, { title: '', completed: false })
-  }
 }
 
 function formatSize(bytes) {
