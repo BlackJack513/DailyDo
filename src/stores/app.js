@@ -71,11 +71,20 @@ export const useAppStore = defineStore('app', () => {
     { id: 'forest', name: '翠影', color: '#16a34a' },
     { id: 'twilight', name: '紫韵', color: '#9333ea' },
     { id: 'blossom', name: '粉黛', color: '#ec4899' },
+    { id: 'ink', name: '墨染', color: '#52AAB6' },
+    { id: 'dawn', name: '晨曦', color: '#E88C26' },
+    { id: 'seafoam', name: '海雾', color: '#4882AA' },
+    { id: 'bamboo', name: '竹影', color: '#628C4E' },
+    { id: 'starry', name: '星夜', color: '#9B87EB' },
+    { id: 'coffee', name: '咖啡时光', color: '#A56937' },
   ]
+
+  // Dark themes that need the `dark` class for Tailwind
+  const darkThemes = ['dark', 'ink', 'starry']
 
   // ─── Theme ──────────────────────────────────────────
   function applyTheme() {
-    const isDarkTheme = theme.value === 'dark'
+    const isDarkTheme = darkThemes.includes(theme.value)
     document.documentElement.setAttribute('data-theme', theme.value)
     if (isDarkTheme) {
       document.documentElement.classList.add('dark')
@@ -83,6 +92,8 @@ export const useAppStore = defineStore('app', () => {
       document.documentElement.classList.remove('dark')
     }
   }
+
+  const isDarkTheme = computed(() => darkThemes.includes(theme.value))
 
   async function setTheme(newTheme) {
     theme.value = newTheme
@@ -548,6 +559,7 @@ export const useAppStore = defineStore('app', () => {
   return {
     theme,
     themes,
+    isDarkTheme,
     tags,
     currentTodos,
     currentDate,

@@ -12,7 +12,7 @@
         <h3 class="text-sm font-semibold text-content mb-4">外观</h3>
         <div>
           <p class="text-sm text-content-secondary mb-3">主题模式</p>
-          <div class="grid grid-cols-5 gap-2">
+          <div class="grid grid-cols-6 gap-2">
             <button
               v-for="t in store.themes"
               :key="t.id"

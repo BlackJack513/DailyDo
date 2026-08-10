@@ -35,7 +35,7 @@ import Sidebar from './components/Sidebar.vue'
 import MiniModeView from './components/MiniModeView.vue'
 
 const store = useAppStore()
-const isDark = computed(() => store.theme === 'dark')
+const isDark = computed(() => store.isDarkTheme)
 
 // Reminder tracking
 const notifiedReminderIds = new Set()
