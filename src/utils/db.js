@@ -197,3 +197,12 @@ export async function openAttachment(filePath) {
 export async function showAttachmentInExplorer(filePath) {
   return await invoke('show_attachment_in_explorer', { filePath })
 }
+
+// Activity log
+export async function getActivityLogsByTodoId(todoId) {
+  return await invoke('get_activity_logs_by_todo_id', { todoId })
+}
+
+export async function addActivityLog(log) {
+  return await invoke('add_activity_log', { log })
+}

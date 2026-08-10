@@ -85,12 +85,24 @@ pub fn init_db(conn: &Connection) -> Result<()> {
             FOREIGN KEY (template_id) REFERENCES todo_templates(id) ON DELETE CASCADE
         );
 
+        CREATE TABLE IF NOT EXISTS todo_activity_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            todo_id INTEGER NOT NULL,
+            action TEXT NOT NULL,
+            old_status TEXT,
+            new_status TEXT,
+            detail TEXT,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (todo_id) REFERENCES todos(id) ON DELETE CASCADE
+        );
+
         CREATE INDEX IF NOT EXISTS idx_todos_todo_date ON todos(todo_date);
         CREATE INDEX IF NOT EXISTS idx_todos_status ON todos(status);
         CREATE INDEX IF NOT EXISTS idx_todos_deleted ON todos(deleted_at);
         CREATE INDEX IF NOT EXISTS idx_todo_tags_todo ON todo_tags(todo_id);
         CREATE INDEX IF NOT EXISTS idx_todo_tags_tag ON todo_tags(tag_id);
         CREATE INDEX IF NOT EXISTS idx_todo_steps_todo ON todo_steps(todo_id);
+        CREATE INDEX IF NOT EXISTS idx_activity_log_todo ON todo_activity_log(todo_id);
         "
     )?;
 

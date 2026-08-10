@@ -150,6 +150,20 @@
         <!-- Actions -->
         <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
+            @click.stop="$emit('history', todo)"
+            class="p-1.5 rounded-lg hover:bg-surface-tertiary text-content-tertiary hover:text-primary transition-colors"
+            title="历史记录"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+          </button>
+          <button
             @click.stop="$emit('edit', todo)"
             class="p-1.5 rounded-lg hover:bg-surface-tertiary text-content-tertiary hover:text-content transition-colors"
           >
@@ -260,7 +274,7 @@ const props = defineProps({
   badgeColor: { type: String, default: '' },
 })
 
-const emit = defineEmits(['drop', 'toggle', 'edit', 'delete', 'toggle-collapse', 'detail'])
+const emit = defineEmits(['drop', 'toggle', 'edit', 'delete', 'toggle-collapse', 'detail', 'history'])
 
 const isDragOver = ref(false)
 const collapsed = ref(false)

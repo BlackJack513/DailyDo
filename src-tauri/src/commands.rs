@@ -107,6 +107,17 @@ pub struct TemplateStep {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct ActivityLog {
+    pub id: Option<i64>,
+    pub todo_id: i64,
+    pub action: String,
+    pub old_status: Option<String>,
+    pub new_status: Option<String>,
+    pub detail: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct OverviewStats {
     pub today_total: i32,
     pub today_completed: i32,
@@ -191,6 +202,13 @@ pub fn create_todo(state: State<AppState>, todo: Todo) -> Result<Todo, String> {
     .map_err(|e| e.to_string())?;
 
     let id = db.last_insert_rowid();
+
+    // Log activity
+    let _ = db.execute(
+        "INSERT INTO todo_activity_log (todo_id, action, new_status, created_at) VALUES (?1, 'created', ?2, ?3)",
+        params![id, status, &now],
+    );
+
     Ok(Todo {
         id: Some(id),
         title: todo.title,
@@ -230,6 +248,13 @@ pub fn update_todo(state: State<AppState>, todo: Todo) -> Result<(), String> {
         None
     };
 
+    // Query old status for activity logging
+    let old_status: Option<String> = db
+        .prepare("SELECT status FROM todos WHERE id=?1")
+        .map_err(|e| e.to_string())?
+        .query_row(params![todo.id.unwrap()], |row| row.get(0))
+        .ok();
+
     db.execute(
         "UPDATE todos SET title=?1, notes=?2, status=?3, priority=?4, due_date=?5, todo_date=?6,
          recurrence_type=?7, recurrence_config=?8, recurrence_group_id=?9, recurrence_enabled=?10, completed_at=?11, updated_at=?12,
@@ -257,6 +282,16 @@ pub fn update_todo(state: State<AppState>, todo: Todo) -> Result<(), String> {
     )
     .map_err(|e| e.to_string())?;
 
+    // Log activity: status change
+    let todo_id = todo.id.unwrap();
+    let old_st = old_status.clone().unwrap_or_else(|| "pending".to_string());
+    if old_st != status {
+        let _ = db.execute(
+            "INSERT INTO todo_activity_log (todo_id, action, old_status, new_status, created_at) VALUES (?1, 'status_changed', ?2, ?3, ?4)",
+            params![todo_id, old_status, &status, &now],
+        );
+    }
+
     Ok(())
 }
 
@@ -270,6 +305,13 @@ pub fn delete_todo(state: State<AppState>, id: i64) -> Result<(), String> {
         params![&now, id],
     )
     .map_err(|e| e.to_string())?;
+
+    // Log activity
+    let _ = db.execute(
+        "INSERT INTO todo_activity_log (todo_id, action, created_at) VALUES (?1, 'deleted', ?2)",
+        params![id, &now],
+    );
+
     Ok(())
 }
 
@@ -378,6 +420,13 @@ pub fn restore_todo(state: State<AppState>, id: i64) -> Result<(), String> {
         params![&now, id],
     )
     .map_err(|e| e.to_string())?;
+
+    // Log activity
+    let _ = db.execute(
+        "INSERT INTO todo_activity_log (todo_id, action, created_at) VALUES (?1, 'restored', ?2)",
+        params![id, &now],
+    );
+
     Ok(())
 }
 
@@ -1162,11 +1211,35 @@ pub fn toggle_step_completed(
     if total_count > 0 {
         let new_status = if all_done { "done" } else { "in_progress" };
         let completed_at = if all_done { Some(now.clone()) } else { None };
+
+        // Get old status for activity logging
+        let old_status: Option<String> = db
+            .prepare("SELECT status FROM todos WHERE id=?1")
+            .map_err(|e| e.to_string())?
+            .query_row(params![step_todo_id], |row| row.get(0))
+            .ok();
+
         db.execute(
             "UPDATE todos SET status=?1, completed_at=?2, updated_at=?3 WHERE id=?4 AND deleted_at IS NULL",
             params![new_status, completed_at, &now, step_todo_id],
         )
         .map_err(|e| e.to_string())?;
+
+        // Log step toggle activity
+        let step_action = if new_completed { "step_completed" } else { "step_reopened" };
+        let _ = db.execute(
+            "INSERT INTO todo_activity_log (todo_id, action, detail, created_at) VALUES (?1, ?2, ?3, ?4)",
+            params![step_todo_id, step_action, &step.title, &now],
+        );
+
+        // Log status change if it differs
+        let old_st = old_status.unwrap_or_else(|| "pending".to_string());
+        if old_st != new_status {
+            let _ = db.execute(
+                "INSERT INTO todo_activity_log (todo_id, action, old_status, new_status, created_at) VALUES (?1, 'status_changed', ?2, ?3, ?4)",
+                params![step_todo_id, &old_st, new_status, &now],
+            );
+        }
     }
 
     Ok(new_completed)
@@ -1526,4 +1599,41 @@ pub fn clear_completed_attachments(state: State<AppState>) -> Result<i64, String
     ).map_err(|e| e.to_string())?;
 
     Ok(count)
+}
+
+// ─── Activity Log Commands ─────────────────────────────────────
+
+#[tauri::command]
+pub fn get_activity_logs_by_todo_id(state: State<AppState>, todo_id: i64) -> Result<Vec<ActivityLog>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let mut stmt = db.prepare(
+        "SELECT id, todo_id, action, old_status, new_status, detail, created_at FROM todo_activity_log WHERE todo_id=?1 ORDER BY created_at ASC"
+    ).map_err(|e| e.to_string())?;
+
+    let logs = stmt.query_map(params![todo_id], |row| {
+        Ok(ActivityLog {
+            id: row.get(0)?,
+            todo_id: row.get(1)?,
+            action: row.get(2)?,
+            old_status: row.get(3)?,
+            new_status: row.get(4)?,
+            detail: row.get(5)?,
+            created_at: row.get(6)?,
+        })
+    }).map_err(|e| e.to_string())?
+    .filter_map(|r| r.ok())
+    .collect();
+
+    Ok(logs)
+}
+
+#[tauri::command]
+pub fn add_activity_log(state: State<AppState>, log: ActivityLog) -> Result<i64, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let now = now_string();
+    db.execute(
+        "INSERT INTO todo_activity_log (todo_id, action, old_status, new_status, detail, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        params![log.todo_id, log.action, log.old_status, log.new_status, log.detail, now],
+    ).map_err(|e| e.to_string())?;
+    Ok(db.last_insert_rowid())
 }

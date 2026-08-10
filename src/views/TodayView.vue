@@ -96,6 +96,7 @@
           @edit="handleEdit"
           @delete="handleDelete"
           @detail="handleDetail"
+          @history="handleHistory"
         />
         <!-- In Progress Column -->
         <KanbanColumn
@@ -108,6 +109,7 @@
           @edit="handleEdit"
           @delete="handleDelete"
           @detail="handleDetail"
+          @history="handleHistory"
         />
         <!-- Done Column -->
         <KanbanColumn
@@ -120,6 +122,7 @@
           @edit="handleEdit"
           @delete="handleDelete"
           @detail="handleDetail"
+          @history="handleHistory"
         />
       </div>
 
@@ -265,6 +268,15 @@
       @close="closeDetailModal"
       @delete="handleDetailDelete"
       @toggle-step="handleStepToggle"
+    />
+
+    <!-- Activity History Modal -->
+    <ActivityHistoryModal
+      :show="showHistoryModal"
+      :todo-id="historyTodo?.id"
+      :todo-title="historyTodo?.title"
+      :todo-created-at="historyTodo?.created_at"
+      @close="closeHistoryModal"
     />
 
     <!-- Double-click hint -->
@@ -438,6 +450,7 @@ import AddTodoModal from '../components/AddTodoModal.vue'
 import TodoDetailModal from '../components/TodoDetailModal.vue'
 import KanbanColumn from '../components/KanbanColumn.vue'
 import CompactTodoItem from '../components/CompactTodoItem.vue'
+import ActivityHistoryModal from '../components/ActivityHistoryModal.vue'
 
 const store = useAppStore()
 
@@ -452,6 +465,10 @@ const showTemplatePicker = ref(false)
 const templateList = ref([])
 const templateLoading = ref(false)
 const modalLockedFields = ref([])
+
+// Activity history modal
+const showHistoryModal = ref(false)
+const historyTodo = ref(null)
 
 // Historical drag state
 const histDragState = ref(null) // { todo, startX, startY, x, y, active, targetStatus }
@@ -625,6 +642,16 @@ function closeDetailModal() {
 function handleDetailDelete(todo) {
   closeDetailModal()
   deletingTodo.value = todo
+}
+
+function handleHistory(todo) {
+  historyTodo.value = todo
+  showHistoryModal.value = true
+}
+
+function closeHistoryModal() {
+  showHistoryModal.value = false
+  historyTodo.value = null
 }
 
 async function handleStepToggle(step) {

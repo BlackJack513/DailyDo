@@ -103,6 +103,8 @@ fn main() {
             commands::get_all_attachments,
             commands::delete_attachment,
             commands::clear_completed_attachments,
+            commands::get_activity_logs_by_todo_id,
+            commands::add_activity_log,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
