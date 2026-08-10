@@ -60,15 +60,13 @@ export async function importFromJSON() {
   // Get all tags to map names to IDs
   const allTags = await db.getAllTags()
   const tagNameToId = {}
-  allTags.forEach((t) => {
+  allTags.forEach(t => {
     tagNameToId[t.name] = t.id
   })
 
   // Import todos
   for (const todo of data.todos) {
-    const tagIds = (todo.tags || [])
-      .map((t) => tagNameToId[t.name])
-      .filter(Boolean)
+    const tagIds = (todo.tags || []).map(t => tagNameToId[t.name]).filter(Boolean)
 
     const created = await db.createTodo({
       title: todo.title,
@@ -109,14 +107,12 @@ export async function exportToMarkdown(startDate, endDate) {
   const dates = Object.keys(grouped).sort()
   for (const date of dates) {
     const items = grouped[date]
-    const done = items.filter((t) => t.status === 'done').length
+    const done = items.filter(t => t.status === 'done').length
     md += `## ${date} (${done}/${items.length} 已完成)\n\n`
     for (const item of items) {
-      const statusIcon =
-        item.status === 'done' ? '[x]' : item.status === 'in_progress' ? '[~]' : '[ ]'
-      const priorityIcon =
-        item.priority === 'high' ? ' 🔴' : item.priority === 'medium' ? ' 🟡' : ' 🟢'
-      const tagStr = (item.tags || []).map((t) => `\`${t.name}\``).join(' ')
+      const statusIcon = item.status === 'done' ? '[x]' : item.status === 'in_progress' ? '[~]' : '[ ]'
+      const priorityIcon = item.priority === 'high' ? ' 🔴' : item.priority === 'medium' ? ' 🟡' : ' 🟢'
+      const tagStr = (item.tags || []).map(t => `\`${t.name}\``).join(' ')
       md += `- ${statusIcon} **${item.title}**${priorityIcon}${tagStr ? ' ' + tagStr : ''}\n`
       if (item.notes && item.notes !== '<p><br></p>' && item.notes !== '') {
         md += `  ${item.notes.replace(/<[^>]*>/g, '').substring(0, 100)}\n`
@@ -148,12 +144,12 @@ export async function exportToExcel(startDate, endDate) {
   const statusMap = { pending: '待处理', in_progress: '进行中', done: '已完成' }
   const priorityMap = { high: '高', medium: '中', low: '低' }
 
-  const rows = todos.map((todo) => ({
+  const rows = todos.map(todo => ({
     日期: todo.todo_date,
     标题: todo.title,
     状态: statusMap[todo.status] || todo.status,
     优先级: priorityMap[todo.priority] || todo.priority,
-    标签: (todo.tags || []).map((t) => t.name).join(', '),
+    标签: (todo.tags || []).map(t => t.name).join(', '),
     备注: (todo.notes || '').replace(/<[^>]*>/g, ''),
     完成时间: todo.completed_at || '',
     创建时间: todo.created_at || '',
@@ -164,10 +160,7 @@ export async function exportToExcel(startDate, endDate) {
   XLSX.utils.book_append_sheet(wb, ws, '待办数据')
 
   // Set column widths
-  ws['!cols'] = [
-    { wch: 12 }, { wch: 30 }, { wch: 8 }, { wch: 6 },
-    { wch: 20 }, { wch: 40 }, { wch: 20 }, { wch: 20 },
-  ]
+  ws['!cols'] = [{ wch: 12 }, { wch: 30 }, { wch: 8 }, { wch: 6 }, { wch: 20 }, { wch: 40 }, { wch: 20 }, { wch: 20 }]
 
   const filePath = await save({
     defaultPath: `dailydo-report-${formatDate(new Date())}.xlsx`,

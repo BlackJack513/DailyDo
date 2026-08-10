@@ -25,8 +25,8 @@ export const useAppStore = defineStore('app', () => {
 
   // Mini mode
   const isMiniMode = ref(false)
-  const pendingQuickAdd = ref(null)   // { title, priority, tagIds } from mini mode expand
-  const pendingEditTodo = ref(null)   // todo object from mini mode edit
+  const pendingQuickAdd = ref(null) // { title, priority, tagIds } from mini mode expand
+  const pendingEditTodo = ref(null) // todo object from mini mode edit
 
   // Background image
   const backgroundImage = ref('')
@@ -61,12 +61,8 @@ export const useAppStore = defineStore('app', () => {
   })
 
   // Computed
-  const pendingTodos = computed(() =>
-    currentTodos.value.filter((t) => t.status !== 'done')
-  )
-  const doneTodos = computed(() =>
-    currentTodos.value.filter((t) => t.status === 'done')
-  )
+  const pendingTodos = computed(() => currentTodos.value.filter(t => t.status !== 'done'))
+  const doneTodos = computed(() => currentTodos.value.filter(t => t.status === 'done'))
 
   // Available themes
   const themes = [
@@ -218,7 +214,7 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function updateTodo(todo) {
-    const oldStatus = currentTodos.value.find((t) => t.id === todo.id)?.status
+    const oldStatus = currentTodos.value.find(t => t.id === todo.id)?.status
     await db.updateTodo(todo)
     // BUG FIX: Always update tags when editing a todo
     if (todo.tagIds) {
@@ -229,12 +225,7 @@ export const useAppStore = defineStore('app', () => {
       await db.saveTodoSteps(todo.id, todo.steps || [])
     }
     // Handle recurrence: if status changed to done and it's recurring
-    if (
-      todo.status === 'done' &&
-      oldStatus !== 'done' &&
-      todo.recurrence_type &&
-      todo.recurrence_type !== 'none'
-    ) {
+    if (todo.status === 'done' && oldStatus !== 'done' && todo.recurrence_type && todo.recurrence_type !== 'none') {
       await createNextRecurrence(todo)
     }
     await loadTodosForDate(currentDate.value)
@@ -248,12 +239,7 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function toggleTodoStatus(todo) {
-    const nextStatus =
-      todo.status === 'pending'
-        ? 'in_progress'
-        : todo.status === 'in_progress'
-        ? 'done'
-        : 'pending'
+    const nextStatus = todo.status === 'pending' ? 'in_progress' : todo.status === 'in_progress' ? 'done' : 'pending'
     await updateTodo({ ...todo, status: nextStatus })
   }
 
@@ -279,9 +265,10 @@ export const useAppStore = defineStore('app', () => {
     // Check if recurrence is enabled for this group
     if (todo.recurrence_enabled === false) return
 
-    const config = typeof todo.recurrence_config === 'string'
-      ? JSON.parse(todo.recurrence_config || '{}')
-      : (todo.recurrence_config || {})
+    const config =
+      typeof todo.recurrence_config === 'string'
+        ? JSON.parse(todo.recurrence_config || '{}')
+        : todo.recurrence_config || {}
     const currentDateObj = new Date(todo.todo_date)
     let nextDate = new Date(currentDateObj)
 
@@ -324,17 +311,14 @@ export const useAppStore = defineStore('app', () => {
     // Deduplication: check if a todo with same title+date+group already exists
     const existingTodos = await db.getTodosByDate(nextDateStr)
     const duplicate = existingTodos.find(
-      (t) =>
-        t.title === todo.title &&
-        t.recurrence_group_id === groupId &&
-        t.deleted_at == null
+      t => t.title === todo.title && t.recurrence_group_id === groupId && t.deleted_at == null,
     )
     if (duplicate) {
       // Already exists, skip creation but still copy tags if needed
       if (todo.tags && todo.tags.length > 0) {
         const existingTags = await db.getTodoTags(duplicate.id)
-        const existingTagIds = existingTags.map((t) => t.id)
-        const newTagIds = todo.tags.map((t) => t.id).filter((id) => !existingTagIds.includes(id))
+        const existingTagIds = existingTags.map(t => t.id)
+        const newTagIds = todo.tags.map(t => t.id).filter(id => !existingTagIds.includes(id))
         if (newTagIds.length > 0) {
           await db.setTodoTags(duplicate.id, [...existingTagIds, ...newTagIds])
         }
@@ -343,7 +327,7 @@ export const useAppStore = defineStore('app', () => {
       if (todo.steps && todo.steps.length > 0) {
         const existingSteps = await db.getStepsByTodoId(duplicate.id)
         if (existingSteps.length === 0) {
-          const newSteps = todo.steps.map((s) => ({
+          const newSteps = todo.steps.map(s => ({
             title: s.title,
             completed: false,
             sort_order: s.sort_order || 0,
@@ -370,13 +354,13 @@ export const useAppStore = defineStore('app', () => {
 
     // Copy tags
     if (todo.tags && todo.tags.length > 0) {
-      const tagIds = todo.tags.map((t) => t.id)
+      const tagIds = todo.tags.map(t => t.id)
       await db.setTodoTags(created.id, tagIds)
     }
 
     // Copy steps (reset completed to false for the new occurrence)
     if (todo.steps && todo.steps.length > 0) {
-      const newSteps = todo.steps.map((s) => ({
+      const newSteps = todo.steps.map(s => ({
         title: s.title,
         completed: false,
         sort_order: s.sort_order || 0,
@@ -419,7 +403,7 @@ export const useAppStore = defineStore('app', () => {
     const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
     const counts = await db.getDailyCounts(startDate, endDate)
     const map = {}
-    counts.forEach((c) => {
+    counts.forEach(c => {
       map[c.date] = { total: c.total, completed: c.completed }
     })
     calendarCounts.value = map
@@ -433,7 +417,7 @@ export const useAppStore = defineStore('app', () => {
     const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
     const days = await db.getCalendarDays(startDate, endDate)
     const map = {}
-    days.forEach((d) => {
+    days.forEach(d => {
       map[d.date] = d.day_type
     })
     calendarDays.value = map
@@ -483,7 +467,7 @@ export const useAppStore = defineStore('app', () => {
         for (const gid of Object.keys(workdayGroups)) {
           const template = workdayGroups[gid]
           const alreadyExists = existingTodos.some(
-            t => (t.recurrence_group_id === gid || `single_${t.id}` === gid) && t.deleted_at == null
+            t => (t.recurrence_group_id === gid || `single_${t.id}` === gid) && t.deleted_at == null,
           )
           if (!alreadyExists) {
             const created = await db.createTodo({
