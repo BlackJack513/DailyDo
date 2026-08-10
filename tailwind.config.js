@@ -5,24 +5,30 @@ export default {
   theme: {
     extend: {
       colors: {
+        body: 'rgb(var(--color-body) / <alpha-value>)',
         surface: {
-          DEFAULT: '#ffffff',
-          secondary: '#f8fafc',
-          tertiary: '#f1f5f9',
+          DEFAULT: 'rgb(var(--color-surface) / <alpha-value>)',
+          secondary: 'rgb(var(--color-surface-2) / <alpha-value>)',
+          tertiary: 'rgb(var(--color-surface-3) / <alpha-value>)',
+          hover: 'rgb(var(--color-surface-hover) / <alpha-value>)',
         },
+        sidebar: 'rgb(var(--color-sidebar) / <alpha-value>)',
+        control: 'rgb(var(--color-control) / <alpha-value>)',
         content: {
-          DEFAULT: '#0f172a',
-          secondary: '#475569',
-          tertiary: '#94a3b8',
+          DEFAULT: 'rgb(var(--color-content) / <alpha-value>)',
+          secondary: 'rgb(var(--color-content-sec) / <alpha-value>)',
+          tertiary: 'rgb(var(--color-muted) / <alpha-value>)',
         },
         border: {
-          DEFAULT: '#e2e8f0',
-          secondary: '#f1f5f9',
+          DEFAULT: 'rgb(var(--color-divider) / <alpha-value>)',
+          secondary: 'rgb(var(--color-surface-3) / <alpha-value>)',
         },
+        divider: 'rgb(var(--color-divider) / <alpha-value>)',
+        muted: 'rgb(var(--color-muted) / <alpha-value>)',
         primary: {
-          DEFAULT: '#6366f1',
-          hover: '#4f46e5',
-          light: '#e0e7ff',
+          DEFAULT: 'rgb(var(--color-primary) / <alpha-value>)',
+          hover: 'rgb(var(--color-primary-hover) / <alpha-value>)',
+          light: 'rgb(var(--color-primary-light) / <alpha-value>)',
         },
       },
     },

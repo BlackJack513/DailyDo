@@ -68,19 +68,35 @@ export const useAppStore = defineStore('app', () => {
     currentTodos.value.filter((t) => t.status === 'done')
   )
 
+  // Available themes
+  const themes = [
+    { id: 'light', name: '默认浅色', color: '#6366f1' },
+    { id: 'dark', name: '默认深色', color: '#818cf8' },
+    { id: 'forest', name: '翠影', color: '#16a34a' },
+    { id: 'twilight', name: '紫韵', color: '#9333ea' },
+    { id: 'blossom', name: '粉黛', color: '#ec4899' },
+  ]
+
   // ─── Theme ──────────────────────────────────────────
   function applyTheme() {
-    if (theme.value === 'dark') {
+    const isDarkTheme = theme.value === 'dark'
+    document.documentElement.setAttribute('data-theme', theme.value)
+    if (isDarkTheme) {
       document.documentElement.classList.add('dark')
     } else {
       document.documentElement.classList.remove('dark')
     }
   }
 
-  async function toggleTheme() {
-    theme.value = theme.value === 'dark' ? 'light' : 'dark'
+  async function setTheme(newTheme) {
+    theme.value = newTheme
     applyTheme()
     await db.setSetting('theme', theme.value)
+  }
+
+  async function toggleTheme() {
+    const next = theme.value === 'dark' ? 'light' : 'dark'
+    await setTheme(next)
   }
 
   async function loadSettings() {
@@ -547,6 +563,7 @@ export const useAppStore = defineStore('app', () => {
 
   return {
     theme,
+    themes,
     tags,
     currentTodos,
     currentDate,
@@ -564,6 +581,7 @@ export const useAppStore = defineStore('app', () => {
     pendingTodos,
     doneTodos,
     applyTheme,
+    setTheme,
     toggleTheme,
     loadSettings,
     loadTags,
