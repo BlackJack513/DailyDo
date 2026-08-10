@@ -5,7 +5,7 @@
       <div>
         <h1 class="text-2xl font-bold text-content">待办列表</h1>
         <p class="text-sm text-content-tertiary mt-0.5">
-          {{ pendingTodos.length }} 待处理 · {{ inProgressTodos.length }} 进行中 · {{ doneTodos.length }} 已完成
+          {{ pendingTodos.length }} 待处理 · {{ inProgressTodos.length }} 进行中 · {{ blockedTodos.length }} 等待中 · {{ doneTodos.length }} 已完成
         </p>
       </div>
       <div class="flex items-center gap-2">
@@ -104,6 +104,19 @@
           :todos="inProgressTodos"
           status-color="border-blue-400"
           badge-color="bg-blue-100 text-blue-700 bg-blue-50/30 text-blue-400"
+          @drop="handleDrop"
+          @toggle="handleToggle"
+          @edit="handleEdit"
+          @delete="handleDelete"
+          @detail="handleDetail"
+          @history="handleHistory"
+        />
+        <!-- Blocked Column -->
+        <KanbanColumn
+          title="等待中"
+          :todos="blockedTodos"
+          status-color="border-amber-500"
+          badge-color="bg-amber-100 text-amber-700 bg-amber-50/30 text-amber-400"
           @drop="handleDrop"
           @toggle="handleToggle"
           @edit="handleEdit"
@@ -480,6 +493,7 @@ const HIST_DRAG_THRESHOLD = 5
 
 const pendingTodos = computed(() => store.currentTodos.filter(t => t.status === 'pending'))
 const inProgressTodos = computed(() => store.currentTodos.filter(t => t.status === 'in_progress'))
+const blockedTodos = computed(() => store.currentTodos.filter(t => t.status === 'blocked'))
 const doneTodos = computed(() => store.currentTodos.filter(t => t.status === 'done'))
 
 // Group historical incomplete todos by date
@@ -844,7 +858,7 @@ function detectHoverColumn(x, y) {
       const titleEl = target.querySelector('.text-sm.font-semibold')
       if (titleEl) {
         const colTitle = titleEl.textContent.trim()
-        const statusMap = { 待处理: 'pending', 进行中: 'in_progress', 已完成: 'done' }
+        const statusMap = { 待处理: 'pending', 进行中: 'in_progress', 等待中: 'blocked', 已完成: 'done' }
         return statusMap[colTitle] || null
       }
     }
@@ -931,7 +945,7 @@ function getHistPriorityLabel(p) {
 }
 
 function getHistStatusLabel(status) {
-  const map = { pending: '待处理', in_progress: '进行中', done: '已完成' }
+  const map = { pending: '待处理', in_progress: '进行中', blocked: '等待中', done: '已完成' }
   return map[status] || '待处理'
 }
 </script>

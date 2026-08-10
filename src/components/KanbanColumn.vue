@@ -52,6 +52,7 @@
             />
           </svg>
           <div v-else-if="todo.status === 'in_progress'" class="w-2 h-2 rounded-full bg-primary"></div>
+          <div v-else-if="todo.status === 'blocked'" class="w-2 h-2 rounded-full bg-amber-500"></div>
         </button>
 
         <!-- Content -->
@@ -238,6 +239,7 @@
             />
           </svg>
           <div v-else-if="dragState.todo.status === 'in_progress'" class="w-2 h-2 rounded-full bg-primary"></div>
+          <div v-else-if="dragState.todo.status === 'blocked'" class="w-2 h-2 rounded-full bg-amber-500"></div>
         </div>
         <div class="flex-1 min-w-0">
           <p class="text-sm font-medium leading-tight text-content truncate">{{ dragState.todo.title }}</p>
@@ -282,7 +284,7 @@ const columnEl = ref(null)
 const dragState = ref(null) // { todo, startX, startY, x, y }
 
 const DRAG_THRESHOLD = 5 // pixels before drag initiates
-const statusOrder = { pending: 'pending', in_progress: 'in_progress', done: 'done' }
+const statusOrder = { pending: 'pending', in_progress: 'in_progress', blocked: 'blocked', done: 'done' }
 
 function onMouseDown(e, todo) {
   // Don't start drag if clicking buttons (they have @click.stop, but mousedown still bubbles)
@@ -433,13 +435,14 @@ onUnmounted(() => {
 })
 
 function getStatusTitle(status) {
-  const map = { pending: '待处理', in_progress: '进行中', done: '已完成' }
+  const map = { pending: '待处理', in_progress: '进行中', blocked: '等待中', done: '已完成' }
   return map[status]
 }
 
 function getStatusClass(status) {
   if (status === 'done') return 'bg-green-500 border-green-500'
   if (status === 'in_progress') return 'border-primary bg-primary/10'
+  if (status === 'blocked') return 'border-amber-500 bg-amber-500/10'
   return 'border-border hover:border-primary'
 }
 

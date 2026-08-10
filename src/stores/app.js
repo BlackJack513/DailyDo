@@ -251,7 +251,7 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function toggleTodoStatus(todo) {
-    const nextStatus = todo.status === 'pending' ? 'in_progress' : todo.status === 'in_progress' ? 'done' : 'pending'
+    const nextStatus = todo.status === 'pending' ? 'in_progress' : todo.status === 'in_progress' ? 'blocked' : todo.status === 'blocked' ? 'done' : 'pending'
     await updateTodo({ ...todo, status: nextStatus })
   }
 
