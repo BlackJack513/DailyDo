@@ -423,6 +423,82 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  // Check for overdue/missing recurrences (called on app startup)
+  // Fixes the bug where periodic tasks don't trigger if the app wasn't running
+  // or the completion chain was broken
+  async function checkOverdueRecurrences() {
+    try {
+      const allTodos = await db.getAllTodos()
+      const recurring = allTodos.filter(
+        t => t.recurrence_type && t.recurrence_type !== 'none' && !t.deleted_at,
+      )
+
+      // Group by recurrence_group_id
+      const groupMap = {}
+      for (const todo of recurring) {
+        const gid = todo.recurrence_group_id || `single_${todo.id}`
+        if (!groupMap[gid]) groupMap[gid] = []
+        groupMap[gid].push(todo)
+      }
+
+      for (const [gid, items] of Object.entries(groupMap)) {
+        // Skip disabled groups
+        if (items.length > 0 && items[0].recurrence_enabled === false) continue
+
+        // Find the item with the latest todo_date (the most recent occurrence)
+        const sorted = [...items].sort((a, b) => (b.todo_date || '').localeCompare(a.todo_date || ''))
+        const latest = sorted[0]
+        if (!latest) continue
+
+        // Only trigger if the latest occurrence is done (chain wasn't broken by user skipping)
+        if (latest.status !== 'done') continue
+
+        // Check if the next occurrence already exists
+        const nextDate = new Date(latest.todo_date)
+        switch (latest.recurrence_type) {
+          case 'daily':
+            nextDate.setDate(nextDate.getDate() + 1)
+            break
+          case 'workday':
+            nextDate.setDate(nextDate.getDate() + 1)
+            while (!(await db.isWorkday(formatDate(nextDate)))) {
+              nextDate.setDate(nextDate.getDate() + 1)
+            }
+            break
+          case 'weekly':
+            nextDate.setDate(nextDate.getDate() + 7)
+            break
+          case 'monthly':
+            nextDate.setMonth(nextDate.getMonth() + 1)
+            break
+          case 'yearly':
+            nextDate.setFullYear(nextDate.getFullYear() + 1)
+            break
+        }
+
+        const nextDateStr = formatDate(nextDate)
+        const groupId = latest.recurrence_group_id || `single_${latest.id}`
+
+        // Check if next occurrence already exists
+        const existingTodos = await db.getTodosByDate(nextDateStr)
+        const exists = existingTodos.find(
+          t => t.title === latest.title && t.recurrence_group_id === groupId && !t.deleted_at,
+        )
+        if (exists) continue
+
+        // Load tags and steps for the template todo
+        latest.tags = await db.getTodoTags(latest.id)
+        latest.steps = await db.getStepsByTodoId(latest.id)
+
+        // Create the missing occurrence
+        await createNextRecurrence(latest)
+        console.log(`[DailyDo] Created overdue recurrence: "${latest.title}" for ${nextDateStr}`)
+      }
+    } catch (e) {
+      console.error('Failed to check overdue recurrences:', e)
+    }
+  }
+
   // ─── Trash ──────────────────────────────────────────
   async function loadTrash() {
     trashTodos.value = await db.getTrashTodos()
@@ -650,6 +726,7 @@ export const useAppStore = defineStore('app', () => {
     clearBackgroundImage,
     saveSidebarConfig,
     moveHistoricalTodoToToday,
+    checkOverdueRecurrences,
   }
 })
 

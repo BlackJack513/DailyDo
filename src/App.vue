@@ -70,6 +70,8 @@ onMounted(async () => {
     console.error('Failed to load settings:', e)
   }
   store.applyTheme()
+  // Check for overdue/missing recurrences on startup
+  store.checkOverdueRecurrences()
   // Check reminders immediately, then every 30 seconds
   checkReminders()
   reminderTimer = setInterval(checkReminders, 30000)
