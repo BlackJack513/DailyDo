@@ -137,6 +137,100 @@
         </div>
       </div>
 
+      <!-- Data Storage Location -->
+      <div class="card">
+        <h3 class="text-sm font-semibold text-content mb-4">数据存储位置</h3>
+        <div class="space-y-3">
+          <div class="p-3 rounded-lg bg-surface-secondary">
+            <p class="text-xs text-content-tertiary mb-1">当前数据目录</p>
+            <p class="text-sm font-mono text-content break-all">{{ currentDataDir }}</p>
+          </div>
+          <div class="flex items-center gap-3">
+            <button @click="changeDataDir" class="btn-primary text-xs px-3 py-1.5 flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+              </svg>
+              更改位置
+            </button>
+            <button v-if="isCustomDataDir" @click="resetDataDirConfirm" class="btn-secondary text-xs px-3 py-1.5">
+              恢复默认
+            </button>
+          </div>
+          <p class="text-xs text-content-tertiary">更改位置会将所有数据（数据库、附件、背景）迁移到新目录，需要重启应用生效</p>
+        </div>
+      </div>
+
+      <!-- Custom Fields -->
+      <div class="card">
+        <h3 class="text-sm font-semibold text-content mb-4">自定义字段</h3>
+        <div class="space-y-3">
+          <div v-if="store.customFields.length === 0" class="text-center py-6 text-content-tertiary text-sm">
+            暂无自定义字段，点击下方按钮添加
+          </div>
+          <div
+            v-for="field in store.customFields"
+            :key="field.id"
+            class="flex items-center justify-between p-3 rounded-lg bg-surface-secondary"
+          >
+            <div class="flex-1">
+              <p class="text-sm font-medium text-content">{{ field.name }}</p>
+              <p class="text-xs text-content-tertiary mt-0.5">
+                类型：{{ field.field_type === 'enum' ? '枚举' : '任意文本' }}
+                <span v-if="field.field_type === 'enum' && field.enum_values">
+                  · 值：{{ JSON.parse(field.enum_values || '[]').join(', ') }}
+                </span>
+              </p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button @click="editCustomField(field)" class="text-primary hover:text-primary/80 text-xs px-2 py-1">
+                编辑
+              </button>
+              <button @click="deleteCustomFieldConfirm(field)" class="text-red-500 hover:text-red-600 text-xs px-2 py-1">
+                删除
+              </button>
+            </div>
+          </div>
+          <button @click="showCustomFieldModal = true" class="btn-primary text-xs px-3 py-1.5 flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            添加字段
+          </button>
+        </div>
+      </div>
+
+      <!-- Custom Field Modal -->
+      <div v-if="showCustomFieldModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click.self="closeCustomFieldModal">
+        <div class="bg-surface border border-border rounded-2xl p-6 w-96 max-w-[90vw] shadow-2xl">
+          <h3 class="text-lg font-bold text-content mb-4">{{ editingField ? '编辑字段' : '添加字段' }}</h3>
+          <div class="space-y-4">
+            <div>
+              <label class="block text-xs text-content-tertiary mb-1">字段名称</label>
+              <input v-model="customFieldForm.name" type="text" class="input-field" placeholder="如：项目、优先级" />
+            </div>
+            <div>
+              <label class="block text-xs text-content-tertiary mb-1">字段类型</label>
+              <select v-model="customFieldForm.field_type" class="input-field">
+                <option value="enum">枚举（从预设值中选择）</option>
+                <option value="text">任意文本（自由输入）</option>
+              </select>
+            </div>
+            <div v-if="customFieldForm.field_type === 'enum'">
+              <label class="block text-xs text-content-tertiary mb-1">枚举值（每行一个）</label>
+              <textarea
+                v-model="customFieldForm.enumValuesText"
+                class="input-field h-24 resize-none"
+                placeholder="高&#10;中&#10;低"
+              ></textarea>
+            </div>
+          </div>
+          <div class="flex justify-end gap-3 mt-6">
+            <button @click="closeCustomFieldModal" class="btn-secondary text-xs px-4 py-2">取消</button>
+            <button @click="saveCustomField" class="btn-primary text-xs px-4 py-2">保存</button>
+          </div>
+        </div>
+      </div>
+
       <!-- Date Range for Export -->
       <div class="card">
         <h3 class="text-sm font-semibold text-content mb-4">导出日期范围</h3>
@@ -168,7 +262,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useAppStore } from '../stores/app'
 import { exportToJSON, importFromJSON, exportToMarkdown, exportToExcel } from '../utils/export'
 import { open } from '@tauri-apps/api/dialog'
@@ -180,11 +274,135 @@ const exportStartDate = ref('')
 const exportEndDate = ref('')
 const toast = ref('')
 
+// Data directory
+const currentDataDir = ref('')
+const defaultDataDir = ref('')
+const isCustomDataDir = computed(() => currentDataDir.value !== defaultDataDir.value && currentDataDir.value !== '')
+
+// Custom fields modal
+const showCustomFieldModal = ref(false)
+const editingField = ref(null)
+const customFieldForm = ref({
+  name: '',
+  field_type: 'text',
+  enumValuesText: '',
+})
+
 function showToast(msg) {
   toast.value = msg
   setTimeout(() => {
     toast.value = ''
   }, 3000)
+}
+
+async function loadDataDir() {
+  try {
+    currentDataDir.value = await store.getDataDir()
+    defaultDataDir.value = await store.getDefaultDataDir()
+  } catch (e) {
+    console.error('Failed to load data dir:', e)
+  }
+}
+
+async function changeDataDir() {
+  try {
+    const selected = await open({
+      directory: true,
+      multiple: false,
+    })
+    if (!selected) return
+    const newPath = typeof selected === 'string' ? selected : selected[0]
+    if (newPath === currentDataDir.value) {
+      showToast('新路径与当前相同')
+      return
+    }
+    if (!confirm(`确定要将数据迁移到：\n${newPath}\n\n迁移后需要重启应用。`)) return
+    const result = await store.migrateDataDir(newPath)
+    if (result.success) {
+      showToast('数据迁移成功，请重启应用')
+      await loadDataDir()
+    } else {
+      showToast('迁移失败: ' + result.message)
+    }
+  } catch (e) {
+    showToast('更改数据目录失败: ' + e)
+  }
+}
+
+async function resetDataDirConfirm() {
+  if (!confirm('确定要恢复默认数据目录吗？\n恢复后需要重启应用，当前自定义目录的数据不会自动删除。')) return
+  try {
+    const result = await store.resetDataDir()
+    if (result.success) {
+      showToast('已恢复默认，请重启应用')
+      await loadDataDir()
+    } else {
+      showToast('恢复失败: ' + result.message)
+    }
+  } catch (e) {
+    showToast('恢复默认失败: ' + e)
+  }
+}
+
+// Custom fields
+function editCustomField(field) {
+  editingField.value = field
+  customFieldForm.value = {
+    name: field.name,
+    field_type: field.field_type,
+    enumValuesText: field.field_type === 'enum'
+      ? JSON.parse(field.enum_values || '[]').join('\n')
+      : '',
+  }
+  showCustomFieldModal.value = true
+}
+
+function closeCustomFieldModal() {
+  showCustomFieldModal.value = false
+  editingField.value = null
+  customFieldForm.value = { name: '', field_type: 'text', enumValuesText: '' }
+}
+
+async function saveCustomField() {
+  if (!customFieldForm.value.name.trim()) {
+    showToast('请输入字段名称')
+    return
+  }
+  const fieldData = {
+    name: customFieldForm.value.name.trim(),
+    field_type: customFieldForm.value.field_type,
+  }
+  if (customFieldForm.value.field_type === 'enum') {
+    const values = customFieldForm.value.enumValuesText
+      .split('\n')
+      .map(v => v.trim())
+      .filter(v => v)
+    fieldData.enum_values = JSON.stringify(values)
+  } else {
+    fieldData.enum_values = '[]'
+  }
+  try {
+    if (editingField.value) {
+      await store.editCustomField({ ...editingField.value, ...fieldData })
+      showToast('字段已更新')
+    } else {
+      await store.addCustomField(fieldData)
+      showToast('字段已添加')
+    }
+    closeCustomFieldModal()
+  } catch (e) {
+    showToast('保存字段失败: ' + e)
+  }
+}
+
+async function deleteCustomFieldConfirm(field) {
+  if (!confirm(`确定要删除字段"${field.name}"吗？\n该字段的所有值也会被删除。`)) return
+  try {
+    await store.removeCustomField(field.id)
+    showToast('字段已删除')
+  } catch (e) {
+    showToast('删除字段失败: ' + e)
+  }
 }
 
 async function handleSetTheme(t) {
@@ -285,4 +503,8 @@ async function handleImportJSON() {
 function formatDate(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
+
+onMounted(() => {
+  loadDataDir()
+})
 </script>

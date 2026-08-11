@@ -96,6 +96,25 @@ pub fn init_db(conn: &Connection) -> Result<()> {
             FOREIGN KEY (todo_id) REFERENCES todos(id) ON DELETE CASCADE
         );
 
+        CREATE TABLE IF NOT EXISTS custom_fields (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            field_type TEXT NOT NULL DEFAULT 'text',
+            enum_values TEXT NOT NULL DEFAULT '[]',
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS custom_field_values (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            todo_id INTEGER NOT NULL,
+            field_id INTEGER NOT NULL,
+            value TEXT DEFAULT '',
+            FOREIGN KEY (todo_id) REFERENCES todos(id) ON DELETE CASCADE,
+            FOREIGN KEY (field_id) REFERENCES custom_fields(id) ON DELETE CASCADE,
+            UNIQUE(todo_id, field_id)
+        );
+
         CREATE INDEX IF NOT EXISTS idx_todos_todo_date ON todos(todo_date);
         CREATE INDEX IF NOT EXISTS idx_todos_status ON todos(status);
         CREATE INDEX IF NOT EXISTS idx_todos_deleted ON todos(deleted_at);

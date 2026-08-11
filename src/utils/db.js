@@ -211,3 +211,50 @@ export async function getActivityLogsByTodoId(todoId) {
 export async function addActivityLog(log) {
   return await invoke('add_activity_log', { log })
 }
+
+// Data directory
+export async function getDataDir() {
+  return await invoke('get_data_dir')
+}
+
+export async function getDefaultDataDir() {
+  return await invoke('get_default_data_dir')
+}
+
+export async function migrateDataDir(newPath) {
+  return await invoke('migrate_data_dir', { newPath })
+}
+
+export async function deleteDataPathOverride() {
+  return await invoke('delete_data_path_override')
+}
+
+// Custom fields
+export async function getCustomFields() {
+  return await invoke('get_custom_fields')
+}
+
+export async function createCustomField(field) {
+  return await invoke('create_custom_field', { field })
+}
+
+export async function updateCustomField(field) {
+  return await invoke('update_custom_field', { field })
+}
+
+export async function deleteCustomField(id) {
+  return await invoke('delete_custom_field', { id })
+}
+
+export async function getCustomFieldValues(todoId) {
+  return await invoke('get_custom_field_values', { todoId })
+}
+
+export async function setCustomFieldValues(todoId, values) {
+  return await invoke('set_custom_field_values', { todoId, values })
+}
+
+// Filtered todos (list view)
+export async function getFilteredTodos(filter) {
+  return await invoke('get_filtered_todos', { filter })
+}

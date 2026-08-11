@@ -484,14 +484,11 @@ pub fn clean_expired_trash(state: State<AppState>) -> Result<i64, String> {
 
 #[tauri::command]
 pub fn save_attachment(
-    app: tauri::AppHandle,
+    state: State<AppState>,
     file_path: String,
     file_name: String,
 ) -> Result<serde_json::Value, String> {
-    let data_dir = app
-        .path_resolver()
-        .app_data_dir()
-        .ok_or("cannot resolve app data dir")?;
+    let data_dir = std::path::PathBuf::from(&state.data_dir);
     let attachments_dir = data_dir.join("attachments");
     std::fs::create_dir_all(&attachments_dir).map_err(|e| e.to_string())?;
 
@@ -1715,4 +1712,370 @@ pub fn get_gantt_data(state: State<AppState>, date: String) -> Result<Vec<GanttT
     }
 
     Ok(result)
+}
+
+// ─── Data Directory Commands ──────────────────────────────────
+
+#[tauri::command]
+pub fn get_data_dir(state: State<AppState>) -> Result<String, String> {
+    Ok(state.data_dir.clone())
+}
+
+#[tauri::command]
+pub fn get_default_data_dir(app: tauri::AppHandle) -> Result<String, String> {
+    let dir = app
+        .path_resolver()
+        .app_data_dir()
+        .ok_or("cannot resolve app data dir")?;
+    Ok(dir.to_string_lossy().to_string())
+}
+
+fn copy_dir_all(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(dst)?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let ty = entry.file_type()?;
+        if ty.is_dir() {
+            copy_dir_all(&entry.path(), &dst.join(entry.file_name()))?;
+        } else {
+            std::fs::copy(entry.path(), &dst.join(entry.file_name()))?;
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn migrate_data_dir(
+    app: tauri::AppHandle,
+    state: State<AppState>,
+    new_path: String,
+) -> Result<(), String> {
+    let default_dir = app
+        .path_resolver()
+        .app_data_dir()
+        .ok_or("cannot resolve app data dir")?;
+    let current_dir = std::path::PathBuf::from(&state.data_dir);
+    let new_dir = std::path::Path::new(&new_path);
+
+    if new_path.is_empty() {
+        return Err("路径不能为空".to_string());
+    }
+    if new_dir == current_dir.as_path() {
+        return Err("新路径与当前路径相同".to_string());
+    }
+
+    std::fs::create_dir_all(new_dir).map_err(|e| format!("创建目录失败: {}", e))?;
+
+    let db_file = current_dir.join("dailydo.db");
+    if db_file.exists() {
+        std::fs::copy(&db_file, new_dir.join("dailydo.db"))
+            .map_err(|e| format!("复制数据库失败: {}", e))?;
+    }
+
+    let attachments_src = current_dir.join("attachments");
+    if attachments_src.exists() {
+        copy_dir_all(&attachments_src, &new_dir.join("attachments"))
+            .map_err(|e| format!("复制附件失败: {}", e))?;
+    }
+
+    let backgrounds_src = current_dir.join("backgrounds");
+    if backgrounds_src.exists() {
+        copy_dir_all(&backgrounds_src, &new_dir.join("backgrounds"))
+            .map_err(|e| format!("复制背景失败: {}", e))?;
+    }
+
+    std::fs::create_dir_all(&default_dir).map_err(|e| format!("创建默认目录失败: {}", e))?;
+    let override_file = default_dir.join("data_path_override");
+    std::fs::write(&override_file, &new_path)
+        .map_err(|e| format!("写入覆盖文件失败: {}", e))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn delete_data_path_override(app: tauri::AppHandle) -> Result<(), String> {
+    let default_dir = app
+        .path_resolver()
+        .app_data_dir()
+        .ok_or("cannot resolve app data dir")?;
+    let override_file = default_dir.join("data_path_override");
+    if override_file.exists() {
+        std::fs::remove_file(&override_file).map_err(|e| format!("删除覆盖文件失败: {}", e))?;
+    }
+    Ok(())
+}
+
+// ─── Custom Field Commands ────────────────────────────────────
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct CustomField {
+    pub id: Option<i64>,
+    pub name: String,
+    pub field_type: Option<String>,
+    pub enum_values: Option<String>,
+    pub sort_order: Option<i32>,
+    pub created_at: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct CustomFieldValue {
+    pub id: Option<i64>,
+    pub todo_id: Option<i64>,
+    pub field_id: i64,
+    pub value: Option<String>,
+}
+
+#[tauri::command]
+pub fn get_custom_fields(state: State<AppState>) -> Result<Vec<CustomField>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let mut stmt = db
+        .prepare("SELECT id, name, field_type, enum_values, sort_order, created_at FROM custom_fields ORDER BY sort_order, id")
+        .map_err(|e| e.to_string())?;
+
+    let fields = stmt
+        .query_map([], |row| {
+            Ok(CustomField {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                field_type: row.get(2)?,
+                enum_values: row.get(3)?,
+                sort_order: row.get(4)?,
+                created_at: row.get(5)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(fields)
+}
+
+#[tauri::command]
+pub fn create_custom_field(state: State<AppState>, field: CustomField) -> Result<CustomField, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let now = now_string();
+    let field_type = field.field_type.unwrap_or_else(|| "text".to_string());
+    let enum_values = field.enum_values.unwrap_or_else(|| "[]".to_string());
+
+    let max_order: i32 = db
+        .query_row("SELECT COALESCE(MAX(sort_order), 0) FROM custom_fields", [], |row| row.get(0))
+        .unwrap_or(0);
+
+    db.execute(
+        "INSERT INTO custom_fields (name, field_type, enum_values, sort_order, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![&field.name, &field_type, &enum_values, max_order + 1, &now],
+    )
+    .map_err(|e| e.to_string())?;
+
+    let id = db.last_insert_rowid();
+    Ok(CustomField {
+        id: Some(id),
+        name: field.name,
+        field_type: Some(field_type),
+        enum_values: Some(enum_values),
+        sort_order: Some(max_order + 1),
+        created_at: Some(now),
+    })
+}
+
+#[tauri::command]
+pub fn update_custom_field(state: State<AppState>, field: CustomField) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let id = field.id.ok_or("field id is required")?;
+    let field_type = field.field_type.unwrap_or_else(|| "text".to_string());
+    let enum_values = field.enum_values.unwrap_or_else(|| "[]".to_string());
+    let sort_order = field.sort_order.unwrap_or(0);
+
+    db.execute(
+        "UPDATE custom_fields SET name=?1, field_type=?2, enum_values=?3, sort_order=?4 WHERE id=?5",
+        params![&field.name, &field_type, &enum_values, sort_order, id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn delete_custom_field(state: State<AppState>, id: i64) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.execute("DELETE FROM custom_field_values WHERE field_id=?1", params![id])
+        .map_err(|e| e.to_string())?;
+    db.execute("DELETE FROM custom_fields WHERE id=?1", params![id])
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_custom_field_values(state: State<AppState>, todo_id: i64) -> Result<Vec<CustomFieldValue>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let mut stmt = db
+        .prepare("SELECT id, todo_id, field_id, value FROM custom_field_values WHERE todo_id=?1")
+        .map_err(|e| e.to_string())?;
+
+    let values = stmt
+        .query_map(params![todo_id], |row| {
+            Ok(CustomFieldValue {
+                id: row.get(0)?,
+                todo_id: row.get(1)?,
+                field_id: row.get(2)?,
+                value: row.get(3)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(values)
+}
+
+#[tauri::command]
+pub fn set_custom_field_values(
+    state: State<AppState>,
+    todo_id: i64,
+    values: Vec<CustomFieldValue>,
+) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    db.execute(
+        "DELETE FROM custom_field_values WHERE todo_id=?1",
+        params![todo_id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    for cfv in &values {
+        let val = cfv.value.clone().unwrap_or_default();
+        db.execute(
+            "INSERT INTO custom_field_values (todo_id, field_id, value) VALUES (?1, ?2, ?3)",
+            params![todo_id, cfv.field_id, &val],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}
+
+// ─── Filtered Todos Command ───────────────────────────────────
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct CustomFieldFilter {
+    pub field_id: i64,
+    pub value: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct TodoFilter {
+    pub search: Option<String>,
+    pub status: Option<String>,
+    pub tag_ids: Option<Vec<i64>>,
+    pub start_date: Option<String>,
+    pub end_date: Option<String>,
+    pub custom_field_filters: Option<Vec<CustomFieldFilter>>,
+    pub sort_by: Option<String>,
+    pub sort_order: Option<String>,
+}
+
+const TODO_COLUMNS_PREFIXED: &str = "t.id, t.title, t.notes, t.status, t.priority, t.due_date, t.todo_date, t.recurrence_type, t.recurrence_config, t.recurrence_group_id, t.recurrence_enabled, t.completed_at, t.created_at, t.updated_at, t.deleted_at, t.attachment_path, t.attachment_name, t.attachment_size, t.reminder_at";
+
+#[tauri::command]
+pub fn get_filtered_todos(
+    state: State<AppState>,
+    filter: TodoFilter,
+) -> Result<Vec<Todo>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    let mut conditions: Vec<String> = vec!["t.deleted_at IS NULL".to_string()];
+    let mut param_values: Vec<String> = Vec::new();
+
+    if let Some(ref search) = filter.search {
+        if !search.is_empty() {
+            param_values.push(format!("%{}%", search));
+            let idx = param_values.len();
+            conditions.push(format!("(t.title LIKE ?{0} OR t.notes LIKE ?{0})", idx));
+        }
+    }
+
+    if let Some(ref status) = filter.status {
+        if !status.is_empty() && status != "all" {
+            param_values.push(status.clone());
+            let idx = param_values.len();
+            conditions.push(format!("t.status = ?{}", idx));
+        }
+    }
+
+    if let Some(ref start) = filter.start_date {
+        if !start.is_empty() {
+            param_values.push(start.clone());
+            let idx = param_values.len();
+            conditions.push(format!("t.todo_date >= ?{}", idx));
+        }
+    }
+    if let Some(ref end) = filter.end_date {
+        if !end.is_empty() {
+            param_values.push(end.clone());
+            let idx = param_values.len();
+            conditions.push(format!("t.todo_date <= ?{}", idx));
+        }
+    }
+
+    if let Some(ref tag_ids) = filter.tag_ids {
+        if !tag_ids.is_empty() {
+            let ids_str: Vec<String> = tag_ids.iter().map(|id| id.to_string()).collect();
+            param_values.push(ids_str.join(","));
+            let idx = param_values.len();
+            conditions.push(format!(
+                "t.id IN (SELECT todo_id FROM todo_tags WHERE tag_id IN (SELECT value FROM json_each(?{0})) GROUP BY todo_id HAVING COUNT(DISTINCT tag_id) = {1})",
+                idx,
+                tag_ids.len()
+            ));
+        }
+    }
+
+    if let Some(ref cf_filters) = filter.custom_field_filters {
+        for cf in cf_filters {
+            if !cf.value.is_empty() {
+                param_values.push(format!("%{}%", cf.value));
+                let idx = param_values.len();
+                conditions.push(format!(
+                    "t.id IN (SELECT todo_id FROM custom_field_values WHERE field_id = {} AND value LIKE ?{})",
+                    cf.field_id, idx
+                ));
+            }
+        }
+    }
+
+    let where_clause = format!("WHERE {}", conditions.join(" AND "));
+
+    let sort_column: &str = match filter.sort_by.as_deref() {
+        Some("todo_date") => "t.todo_date",
+        Some("priority") => "CASE t.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END",
+        Some("status") => "CASE t.status WHEN 'pending' THEN 0 WHEN 'in_progress' THEN 1 WHEN 'blocked' THEN 2 ELSE 3 END",
+        Some("created_at") => "t.created_at",
+        Some("title") => "t.title",
+        _ => "t.todo_date",
+    };
+
+    let sort_dir = match filter.sort_order.as_deref() {
+        Some("ASC") => "ASC",
+        _ => "DESC",
+    };
+
+    let query = format!(
+        "SELECT {} FROM todos t {} ORDER BY {} {}",
+        TODO_COLUMNS_PREFIXED, where_clause, sort_column, sort_dir
+    );
+
+    let mut stmt = db.prepare(&query).map_err(|e| e.to_string())?;
+
+    let params_refs: Vec<&dyn rusqlite::types::ToSql> = param_values
+        .iter()
+        .map(|s| s as &dyn rusqlite::types::ToSql)
+        .collect();
+
+    let todos = stmt
+        .query_map(params_refs.as_slice(), row_to_todo)
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(todos)
 }

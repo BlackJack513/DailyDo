@@ -1,0 +1,374 @@
+<template>
+  <div class="h-full flex flex-col overflow-hidden">
+    <!-- Header -->
+    <div class="px-6 pt-5 pb-3 flex items-center justify-between flex-shrink-0">
+      <div>
+        <h1 class="text-2xl font-bold text-content">列表视图</h1>
+        <p class="text-sm text-content-tertiary mt-0.5">共 {{ store.listTodos.length }} 条待办</p>
+      </div>
+      <button @click="openAddModal" class="btn-primary text-sm px-4 py-2 flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+        </svg>
+        新建待办
+      </button>
+    </div>
+
+    <!-- Filters -->
+    <div class="px-6 pb-3 flex-shrink-0">
+      <div class="card p-3 space-y-3">
+        <!-- Search -->
+        <div class="flex gap-2">
+          <input
+            v-model="store.listFilter.search"
+            type="text"
+            placeholder="搜索标题或备注..."
+            class="input-field flex-1 text-sm"
+            @input="debouncedLoad"
+          />
+          <select v-model="store.listFilter.status" class="input-field text-sm w-32" @change="loadData">
+            <option value="">全部状态</option>
+            <option value="pending">待处理</option>
+            <option value="in_progress">进行中</option>
+            <option value="blocked">已阻塞</option>
+            <option value="done">已完成</option>
+          </select>
+        </div>
+
+        <!-- Date range and tags -->
+        <div class="flex gap-2 flex-wrap">
+          <input
+            v-model="store.listFilter.start_date"
+            type="date"
+            class="input-field text-sm flex-1 min-w-[140px]"
+            placeholder="开始日期"
+            @change="loadData"
+          />
+          <input
+            v-model="store.listFilter.end_date"
+            type="date"
+            class="input-field text-sm flex-1 min-w-[140px]"
+            placeholder="结束日期"
+            @change="loadData"
+          />
+          <div class="flex gap-1 flex-wrap flex-1">
+            <button
+              v-for="tag in store.tags"
+              :key="tag.id"
+              @click="toggleTagFilter(tag.id)"
+              class="tag-badge text-xs border transition-all"
+              :class="
+                store.listFilter.tag_ids.includes(tag.id)
+                  ? 'border-current opacity-100'
+                  : 'border-transparent opacity-50 hover:opacity-75'
+              "
+              :style="{ backgroundColor: tag.color + '20', color: tag.color }"
+            >
+              {{ tag.name }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Custom field filters -->
+        <div v-if="store.customFields.length > 0" class="flex gap-2 flex-wrap">
+          <div v-for="field in store.customFields" :key="field.id" class="flex items-center gap-1">
+            <label class="text-xs text-content-tertiary">{{ field.name }}:</label>
+            <select
+              v-if="field.field_type === 'enum'"
+              v-model="customFieldFilterValues[field.id]"
+              class="input-field text-xs py-1 px-2 w-24"
+              @change="updateCustomFieldFilters"
+            >
+              <option value="">全部</option>
+              <option v-for="val in getEnumValues(field)" :key="val" :value="val">{{ val }}</option>
+            </select>
+            <input
+              v-else
+              v-model="customFieldFilterValues[field.id]"
+              type="text"
+              class="input-field text-xs py-1 px-2 w-24"
+              :placeholder="'筛选'"
+              @input="debouncedUpdateCustomFieldFilters"
+            />
+          </div>
+        </div>
+
+        <!-- Sort -->
+        <div class="flex gap-2 items-center">
+          <span class="text-xs text-content-tertiary">排序:</span>
+          <select v-model="store.listFilter.sort_by" class="input-field text-xs py-1 px-2 w-28" @change="loadData">
+            <option value="todo_date">日期</option>
+            <option value="title">标题</option>
+            <option value="status">状态</option>
+            <option value="priority">优先级</option>
+          </select>
+          <button @click="toggleSortOrder" class="text-xs text-primary hover:text-primary-hover px-2 py-1">
+            {{ store.listFilter.sort_order === 'asc' ? '升序 ↑' : '降序 ↓' }}
+          </button>
+          <button @click="resetFilters" class="text-xs text-content-tertiary hover:text-content px-2 py-1">
+            重置筛选
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="flex-1 px-6 pb-4 overflow-auto">
+      <div class="card overflow-hidden">
+        <table class="w-full text-sm">
+          <thead class="bg-surface-secondary border-b border-border">
+            <tr>
+              <th class="text-left px-3 py-2 font-medium text-content-secondary w-8">状态</th>
+              <th class="text-left px-3 py-2 font-medium text-content-secondary">标题</th>
+              <th class="text-left px-3 py-2 font-medium text-content-secondary w-20">优先级</th>
+              <th class="text-left px-3 py-2 font-medium text-content-secondary w-24">日期</th>
+              <th class="text-left px-3 py-2 font-medium text-content-secondary w-32">标签</th>
+              <th
+                v-for="field in store.customFields"
+                :key="field.id"
+                class="text-left px-3 py-2 font-medium text-content-secondary w-24"
+              >
+                {{ field.name }}
+              </th>
+              <th class="text-left px-3 py-2 font-medium text-content-secondary w-16">操作</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-border">
+            <tr v-for="todo in store.listTodos" :key="todo.id" class="hover:bg-surface-secondary/50 transition-colors">
+              <!-- Status -->
+              <td class="px-3 py-2">
+                <button @click="handleToggleStatus(todo)" class="focus:outline-none">
+                  <span
+                    class="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors"
+                    :class="statusClass(todo.status)"
+                  >
+                    <svg v-if="todo.status === 'done'" class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                    </svg>
+                  </span>
+                </button>
+              </td>
+              <!-- Title -->
+              <td class="px-3 py-2">
+                <div class="flex items-center gap-2">
+                  <span class="text-content font-medium truncate">{{ todo.title }}</span>
+                  <span v-if="todo.recurrence_type && todo.recurrence_type !== 'none'" class="text-purple-500" title="周期任务">
+                    <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
+                    </svg>
+                  </span>
+                </div>
+                <div v-if="todo.notes" class="text-xs text-content-tertiary truncate mt-0.5" v-html="stripHtml(todo.notes)"></div>
+              </td>
+              <!-- Priority -->
+              <td class="px-3 py-2">
+                <span class="text-xs px-1.5 py-0.5 rounded" :class="priorityClass(todo.priority)">
+                  {{ priorityLabel(todo.priority) }}
+                </span>
+              </td>
+              <!-- Date -->
+              <td class="px-3 py-2 text-content-secondary text-xs">
+                {{ todo.todo_date || '' }}
+              </td>
+              <!-- Tags -->
+              <td class="px-3 py-2">
+                <div class="flex gap-1 flex-wrap">
+                  <span
+                    v-for="tag in (todo.tags || [])"
+                    :key="tag.id"
+                    class="tag-badge text-xs border border-transparent"
+                    :style="{ backgroundColor: tag.color + '20', color: tag.color }"
+                  >
+                    {{ tag.name }}
+                  </span>
+                </div>
+              </td>
+              <!-- Custom fields -->
+              <td v-for="field in store.customFields" :key="field.id" class="px-3 py-2 text-content-secondary text-xs">
+                {{ getCustomFieldValue(todo, field.id) }}
+              </td>
+              <!-- Actions -->
+              <td class="px-3 py-2">
+                <button @click="openEditModal(todo)" class="text-primary hover:text-primary-hover text-xs">
+                  编辑
+                </button>
+              </td>
+            </tr>
+            <tr v-if="store.listTodos.length === 0">
+              <td :colspan="6 + store.customFields.length" class="px-3 py-8 text-center text-content-tertiary">
+                暂无匹配的待办
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Add/Edit Modal -->
+    <AddTodoModal
+      :show="showModal"
+      :todo="editingTodo"
+      @close="closeModal"
+      @submit="handleSubmit"
+    />
+  </div>
+</template>
+
+<script setup>
+import { ref, onMounted } from 'vue'
+import { useAppStore } from '../stores/app'
+import AddTodoModal from '../components/AddTodoModal.vue'
+
+const store = useAppStore()
+
+const showModal = ref(false)
+const editingTodo = ref(null)
+const customFieldFilterValues = ref({})
+
+let debounceTimer = null
+function debouncedLoad() {
+  clearTimeout(debounceTimer)
+  debounceTimer = setTimeout(() => {
+    loadData()
+  }, 300)
+}
+
+let customFieldDebounceTimer = null
+function debouncedUpdateCustomFieldFilters() {
+  clearTimeout(customFieldDebounceTimer)
+  customFieldDebounceTimer = setTimeout(() => {
+    updateCustomFieldFilters()
+  }, 300)
+}
+
+function updateCustomFieldFilters() {
+  const filters = []
+  for (const [fieldId, value] of Object.entries(customFieldFilterValues.value)) {
+    if (value && value.trim()) {
+      filters.push({ field_id: parseInt(fieldId), value: value.trim() })
+    }
+  }
+  store.listFilter.custom_field_filters = filters
+  loadData()
+}
+
+async function loadData() {
+  await store.loadListTodos()
+}
+
+function toggleTagFilter(tagId) {
+  const idx = store.listFilter.tag_ids.indexOf(tagId)
+  if (idx >= 0) {
+    store.listFilter.tag_ids.splice(idx, 1)
+  } else {
+    store.listFilter.tag_ids.push(tagId)
+  }
+  loadData()
+}
+
+function toggleSortOrder() {
+  store.listFilter.sort_order = store.listFilter.sort_order === 'asc' ? 'desc' : 'asc'
+  loadData()
+}
+
+function resetFilters() {
+  store.listFilter.search = ''
+  store.listFilter.status = ''
+  store.listFilter.tag_ids = []
+  store.listFilter.start_date = ''
+  store.listFilter.end_date = ''
+  store.listFilter.custom_field_filters = []
+  store.listFilter.sort_by = 'todo_date'
+  store.listFilter.sort_order = 'desc'
+  customFieldFilterValues.value = {}
+  loadData()
+}
+
+function openAddModal() {
+  editingTodo.value = null
+  showModal.value = true
+}
+
+function openEditModal(todo) {
+  editingTodo.value = { ...todo }
+  showModal.value = true
+}
+
+function closeModal() {
+  showModal.value = false
+  editingTodo.value = null
+}
+
+async function handleSubmit(data) {
+  try {
+    if (editingTodo.value) {
+      await store.updateTodo(data)
+    } else {
+      await store.addTodo(data)
+    }
+    closeModal()
+    await loadData()
+  } catch (e) {
+    console.error('Failed to save todo:', e)
+  }
+}
+
+async function handleToggleStatus(todo) {
+  const nextStatus = todo.status === 'pending' ? 'in_progress' : todo.status === 'in_progress' ? 'blocked' : todo.status === 'blocked' ? 'done' : 'pending'
+  try {
+    await store.updateTodo({ ...todo, status: nextStatus })
+    await loadData()
+  } catch (e) {
+    console.error('Failed to toggle status:', e)
+  }
+}
+
+function statusClass(status) {
+  switch (status) {
+    case 'done': return 'bg-green-500 border-green-500'
+    case 'in_progress': return 'bg-blue-500 border-blue-500'
+    case 'blocked': return 'bg-red-500 border-red-500'
+    default: return 'border-content-tertiary'
+  }
+}
+
+function priorityClass(priority) {
+  switch (priority) {
+    case 'high': return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+    case 'medium': return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+    case 'low': return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+    default: return 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
+  }
+}
+
+function priorityLabel(priority) {
+  switch (priority) {
+    case 'high': return '高'
+    case 'medium': return '中'
+    case 'low': return '低'
+    default: return '中'
+  }
+}
+
+function getEnumValues(field) {
+  try {
+    return JSON.parse(field.enum_values || '[]')
+  } catch {
+    return []
+  }
+}
+
+function getCustomFieldValue(todo, fieldId) {
+  const cfv = (todo.customFieldValues || []).find(v => v.field_id === fieldId)
+  return cfv ? cfv.value : ''
+}
+
+function stripHtml(html) {
+  if (!html) return ''
+  return html.replace(/<[^>]*>/g, '').slice(0, 100)
+}
+
+onMounted(() => {
+  loadData()
+})
+</script>

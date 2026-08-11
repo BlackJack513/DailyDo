@@ -10,26 +10,47 @@ use tauri::Manager;
 
 pub struct AppState {
     db: Mutex<Connection>,
+    data_dir: String,
 }
 
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
-            let db_path = app
+            let default_dir = app
                 .path_resolver()
                 .app_data_dir()
                 .expect("failed to get app data dir");
-            std::fs::create_dir_all(&db_path).expect("failed to create data dir");
+            std::fs::create_dir_all(&default_dir).expect("failed to create data dir");
+
+            // Check for data path override
+            let override_file = default_dir.join("data_path_override");
+            let data_dir = if override_file.exists() {
+                if let Ok(custom_path) = std::fs::read_to_string(&override_file) {
+                    let custom_path = custom_path.trim().to_string();
+                    let custom_dir = std::path::PathBuf::from(&custom_path);
+                    if custom_dir.exists() && !custom_path.is_empty() {
+                        std::path::PathBuf::from(custom_path)
+                    } else {
+                        default_dir.clone()
+                    }
+                } else {
+                    default_dir.clone()
+                }
+            } else {
+                default_dir.clone()
+            };
+
+            std::fs::create_dir_all(&data_dir).expect("failed to create effective data dir");
 
             // Create attachments directory
-            let attachments_dir = db_path.join("attachments");
+            let attachments_dir = data_dir.join("attachments");
             std::fs::create_dir_all(&attachments_dir).expect("failed to create attachments dir");
 
             // Create backgrounds directory
-            let backgrounds_dir = db_path.join("backgrounds");
+            let backgrounds_dir = data_dir.join("backgrounds");
             std::fs::create_dir_all(&backgrounds_dir).expect("failed to create backgrounds dir");
 
-            let db_file = db_path.join("dailydo.db");
+            let db_file = data_dir.join("dailydo.db");
             let conn = Connection::open(&db_file).expect("failed to open database");
             init_db(&conn).expect("failed to initialize database");
 
@@ -43,8 +64,10 @@ fn main() {
                 [],
             );
 
+            let data_dir_str = data_dir.to_string_lossy().to_string();
             app.manage(AppState {
                 db: Mutex::new(conn),
+                data_dir: data_dir_str,
             });
 
             // Set initial window properties
@@ -106,6 +129,20 @@ fn main() {
             commands::get_activity_logs_by_todo_id,
             commands::add_activity_log,
             commands::get_gantt_data,
+            // Data directory commands
+            commands::get_data_dir,
+            commands::get_default_data_dir,
+            commands::migrate_data_dir,
+            commands::delete_data_path_override,
+            // Custom field commands
+            commands::get_custom_fields,
+            commands::create_custom_field,
+            commands::update_custom_field,
+            commands::delete_custom_field,
+            commands::get_custom_field_values,
+            commands::set_custom_field_values,
+            // Filtered todos command
+            commands::get_filtered_todos,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

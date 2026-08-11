@@ -209,6 +209,21 @@ const moduleMeta = {
         ]),
     },
   },
+  list: {
+    label: '列表视图',
+    color: '#10b981',
+    icon: {
+      render: () =>
+        h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
+          h('path', {
+            'stroke-linecap': 'round',
+            'stroke-linejoin': 'round',
+            'stroke-width': '2',
+            d: 'M4 6h16M4 12h16M4 18h16',
+          }),
+        ]),
+    },
+  },
   calendar: {
     label: '日历视图',
     color: '#3b82f6',
@@ -404,6 +419,7 @@ function resetDefault() {
       label: '任务录入',
       items: [
         { id: 'today', visible: true },
+        { id: 'list', visible: true },
         { id: 'recurrences', visible: true },
         { id: 'templates', visible: true },
       ],

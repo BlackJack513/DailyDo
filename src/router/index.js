@@ -4,6 +4,7 @@ import TodayView from '../views/TodayView.vue'
 const routes = [
   { path: '/', redirect: '/today' },
   { path: '/today', name: 'today', component: TodayView },
+  { path: '/list', name: 'list', component: () => import('../views/ListView.vue') },
   { path: '/calendar', name: 'calendar', component: () => import('../views/CalendarView.vue') },
   { path: '/analytics', name: 'analytics', component: () => import('../views/AnalyticsView.vue') },
   { path: '/gantt', name: 'gantt', component: () => import('../views/GanttView.vue') },

@@ -182,6 +182,35 @@
           </div>
         </div>
 
+        <!-- Custom Fields -->
+        <div v-if="store.customFields.length > 0">
+          <label class="block text-sm font-medium text-content-secondary text-muted mb-1.5">自定义字段</label>
+          <div class="space-y-3">
+            <div v-for="field in store.customFields" :key="field.id">
+              <label class="block text-xs text-content-tertiary mb-1">{{ field.name }}</label>
+              <select
+                v-if="field.field_type === 'enum'"
+                v-model="form.customFieldValues[field.id]"
+                class="input-field py-1.5 text-sm"
+              >
+                <option value="">-- 请选择 --</option>
+                <option
+                  v-for="val in getEnumValues(field)"
+                  :key="val"
+                  :value="val"
+                >{{ val }}</option>
+              </select>
+              <input
+                v-else
+                v-model="form.customFieldValues[field.id]"
+                type="text"
+                class="input-field py-1.5 text-sm"
+                :placeholder="'输入' + field.name"
+              />
+            </div>
+          </div>
+        </div>
+
         <!-- Steps -->
         <div>
           <div class="flex items-center justify-between mb-1.5">
@@ -344,6 +373,7 @@ const defaultForm = () => ({
   attachment_name: null,
   attachment_size: 0,
   steps: [],
+  customFieldValues: {},
 })
 
 const form = reactive(defaultForm())
@@ -385,6 +415,13 @@ watch(
         form.attachment_size = props.todo.attachment_size || 0
         // Load steps from existing todo
         form.steps = (props.todo.steps || []).map(s => ({ title: s.title, completed: !!s.completed }))
+        // Load custom field values from existing todo
+        form.customFieldValues = {}
+        if (props.todo.customFieldValues) {
+          for (const cfv of props.todo.customFieldValues) {
+            form.customFieldValues[cfv.field_id] = cfv.value || ''
+          }
+        }
       } else {
         isEditing.value = false
         Object.assign(form, defaultForm())
@@ -463,11 +500,23 @@ function formatSize(bytes) {
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
 }
 
+function getEnumValues(field) {
+  try {
+    return JSON.parse(field.enum_values || '[]')
+  } catch {
+    return []
+  }
+}
+
 function submit() {
   if (!form.title.trim()) return
   const reminderAt = form.reminder_enabled && form.reminder_at ? form.reminder_at + ':00' : null
   // Filter out empty steps
   const steps = form.steps.filter(s => s.title.trim()).map(s => ({ title: s.title.trim(), completed: !!s.completed }))
+  // Build custom field values array
+  const customFieldValues = Object.entries(form.customFieldValues)
+    .filter(([, v]) => v !== '' && v !== null && v !== undefined)
+    .map(([fieldId, value]) => ({ field_id: parseInt(fieldId), value }))
   emit('submit', {
     ...(props.todo || {}),
     title: form.title.trim(),
@@ -483,6 +532,7 @@ function submit() {
     attachment_size: form.attachment_size,
     reminder_at: reminderAt,
     steps,
+    customFieldValues,
   })
 }
 </script>

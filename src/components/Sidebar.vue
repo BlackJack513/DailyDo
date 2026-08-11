@@ -184,6 +184,19 @@ const TodayIcon = {
   },
 }
 
+const ListIcon = {
+  render() {
+    return h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
+      h('path', {
+        'stroke-linecap': 'round',
+        'stroke-linejoin': 'round',
+        'stroke-width': '2',
+        d: 'M4 6h16M4 10h16M4 14h16M4 18h16',
+      }),
+    ])
+  },
+}
+
 const CalendarIcon = {
   render() {
     return h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
@@ -328,6 +341,7 @@ const CountdownIcon = {
 
 const allNavItems = {
   today: { path: '/today', label: '待办列表', icon: TodayIcon, id: 'today' },
+  list: { path: '/list', label: '列表视图', icon: ListIcon, id: 'list' },
   calendar: { path: '/calendar', label: '日历视图', icon: CalendarIcon, id: 'calendar' },
   analytics: { path: '/analytics', label: '统计分析', icon: ChartIcon, id: 'analytics' },
   gantt: { path: '/gantt', label: '甘特图', icon: GanttIcon, id: 'gantt' },

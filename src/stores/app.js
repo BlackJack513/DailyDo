@@ -23,6 +23,22 @@ export const useAppStore = defineStore('app', () => {
   // Incomplete todos (across all dates)
   const incompleteTodos = ref([])
 
+  // Custom fields
+  const customFields = ref([])
+
+  // List view
+  const listTodos = ref([])
+  const listFilter = ref({
+    search: '',
+    status: '',
+    tag_ids: [],
+    start_date: '',
+    end_date: '',
+    custom_field_filters: [],
+    sort_by: 'todo_date',
+    sort_order: 'desc',
+  })
+
   // Mini mode
   const isMiniMode = ref(false)
   const pendingQuickAdd = ref(null) // { title, priority, tagIds } from mini mode expand
@@ -42,6 +58,7 @@ export const useAppStore = defineStore('app', () => {
       label: '任务录入',
       items: [
         { id: 'today', visible: true },
+        { id: 'list', visible: true },
         { id: 'recurrences', visible: true },
         { id: 'templates', visible: true },
       ],
@@ -150,6 +167,13 @@ export const useAppStore = defineStore('app', () => {
     }
 
     await loadSidebarConfig()
+
+    try {
+      await loadCustomFields()
+    } catch (e) {
+      console.error('Failed to load custom fields:', e)
+    }
+
     settingsLoaded.value = true
   }
 
@@ -169,7 +193,20 @@ export const useAppStore = defineStore('app', () => {
               Array.isArray(g.items) && g.items.every(i => i && typeof i.id === 'string' && typeof i.visible === 'boolean')
             )
             if (valid) {
+              // Migrate: ensure 'list' module exists in task_entry group
+              let migrated = false
+              for (const g of parsed) {
+                if (g.id === 'task_entry') {
+                  if (!g.items.find(i => i.id === 'list')) {
+                    g.items.splice(1, 0, { id: 'list', visible: true })
+                    migrated = true
+                  }
+                }
+              }
               sidebarConfig.value = parsed
+              if (migrated) {
+                await db.setSetting('sidebar_config', JSON.stringify(parsed))
+              }
               return
             }
             console.warn('Sidebar config has invalid grouped format, resetting to defaults')
@@ -242,10 +279,11 @@ export const useAppStore = defineStore('app', () => {
   async function loadTodosForDate(date) {
     currentDate.value = date
     currentTodos.value = await db.getTodosByDate(date)
-    // Load tags and steps for each todo
+    // Load tags, steps, and custom field values for each todo
     for (const todo of currentTodos.value) {
       todo.tags = await db.getTodoTags(todo.id)
       todo.steps = await db.getStepsByTodoId(todo.id)
+      todo.customFieldValues = await db.getCustomFieldValues(todo.id)
     }
   }
 
@@ -261,6 +299,13 @@ export const useAppStore = defineStore('app', () => {
       created.steps = await db.saveTodoSteps(created.id, todo.steps)
     } else {
       created.steps = []
+    }
+    // Save custom field values if provided
+    if (todo.customFieldValues && todo.customFieldValues.length > 0) {
+      await db.setCustomFieldValues(created.id, todo.customFieldValues)
+      created.customFieldValues = await db.getCustomFieldValues(created.id)
+    } else {
+      created.customFieldValues = []
     }
     // Handle recurrence
     if (todo.recurrence_type && todo.recurrence_type !== 'none') {
@@ -281,6 +326,10 @@ export const useAppStore = defineStore('app', () => {
     // Save steps if provided (always overwrite)
     if (todo.steps !== undefined) {
       await db.saveTodoSteps(todo.id, todo.steps || [])
+    }
+    // Save custom field values if provided
+    if (todo.customFieldValues !== undefined) {
+      await db.setCustomFieldValues(todo.id, todo.customFieldValues || [])
     }
     // Handle recurrence: if status changed to done and it's recurring
     if (todo.status === 'done' && oldStatus !== 'done' && todo.recurrence_type && todo.recurrence_type !== 'none') {
@@ -316,6 +365,7 @@ export const useAppStore = defineStore('app', () => {
     for (const todo of incompleteTodos.value) {
       todo.tags = await db.getTodoTags(todo.id)
       todo.steps = await db.getStepsByTodoId(todo.id)
+      todo.customFieldValues = await db.getCustomFieldValues(todo.id)
     }
   }
 
@@ -708,6 +758,54 @@ export const useAppStore = defineStore('app', () => {
     await db.setSetting('background_image', '""')
   }
 
+  // ─── Custom Fields ──────────────────────────────────
+  async function loadCustomFields() {
+    customFields.value = await db.getCustomFields()
+  }
+
+  async function addCustomField(field) {
+    const created = await db.createCustomField(field)
+    await loadCustomFields()
+    return created
+  }
+
+  async function editCustomField(field) {
+    await db.updateCustomField(field)
+    await loadCustomFields()
+  }
+
+  async function removeCustomField(id) {
+    await db.deleteCustomField(id)
+    await loadCustomFields()
+  }
+
+  // ─── List View ──────────────────────────────────────
+  async function loadListTodos() {
+    listTodos.value = await db.getFilteredTodos(listFilter.value)
+    // Load tags and custom field values for each todo
+    for (const todo of listTodos.value) {
+      todo.tags = await db.getTodoTags(todo.id)
+      todo.customFieldValues = await db.getCustomFieldValues(todo.id)
+    }
+  }
+
+  // ─── Data Directory ─────────────────────────────────
+  async function getDataDir() {
+    return await db.getDataDir()
+  }
+
+  async function getDefaultDataDir() {
+    return await db.getDefaultDataDir()
+  }
+
+  async function migrateDataDir(newPath) {
+    return await db.migrateDataDir(newPath)
+  }
+
+  async function resetDataDir() {
+    return await db.deleteDataPathOverride()
+  }
+
   return {
     theme,
     themes,
@@ -728,6 +826,9 @@ export const useAppStore = defineStore('app', () => {
     settingsLoaded,
     pendingTodos,
     doneTodos,
+    customFields,
+    listTodos,
+    listFilter,
     applyTheme,
     setTheme,
     toggleTheme,
@@ -761,6 +862,15 @@ export const useAppStore = defineStore('app', () => {
     moveHistoricalTodoToToday,
     checkOverdueRecurrences,
     triggerRecurrenceManually,
+    loadCustomFields,
+    addCustomField,
+    editCustomField,
+    removeCustomField,
+    loadListTodos,
+    getDataDir,
+    getDefaultDataDir,
+    migrateDataDir,
+    resetDataDir,
   }
 })
 
