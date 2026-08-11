@@ -32,8 +32,7 @@ export const useAppStore = defineStore('app', () => {
     search: '',
     status: '',
     tag_ids: [],
-    start_date: '',
-    end_date: '',
+    date: new Date().toISOString().split('T')[0],
     custom_field_filters: [],
     sort_by: 'todo_date',
     sort_order: 'desc',
@@ -781,7 +780,14 @@ export const useAppStore = defineStore('app', () => {
 
   // ─── List View ──────────────────────────────────────
   async function loadListTodos() {
-    listTodos.value = await db.getFilteredTodos(listFilter.value)
+    // Transform single date into start_date/end_date for backend
+    const filter = { ...listFilter.value }
+    if (filter.date) {
+      filter.start_date = filter.date
+      filter.end_date = filter.date
+    }
+    delete filter.date
+    listTodos.value = await db.getFilteredTodos(filter)
     // Load tags and custom field values for each todo
     for (const todo of listTodos.value) {
       todo.tags = await db.getTodoTags(todo.id)

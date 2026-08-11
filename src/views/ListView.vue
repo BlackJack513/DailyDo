@@ -35,20 +35,12 @@
           </select>
         </div>
 
-        <!-- Date range and tags -->
-        <div class="flex gap-2 flex-wrap">
+        <!-- Date and tags -->
+        <div class="flex gap-2 flex-wrap items-center">
           <input
-            v-model="store.listFilter.start_date"
+            v-model="store.listFilter.date"
             type="date"
-            class="input-field text-sm flex-1 min-w-[140px]"
-            placeholder="开始日期"
-            @change="loadData"
-          />
-          <input
-            v-model="store.listFilter.end_date"
-            type="date"
-            class="input-field text-sm flex-1 min-w-[140px]"
-            placeholder="结束日期"
+            class="input-field text-sm w-40"
             @change="loadData"
           />
           <div class="flex gap-1 flex-wrap flex-1">
@@ -115,92 +107,92 @@
     <!-- Table -->
     <div class="flex-1 px-6 pb-4 overflow-auto">
       <div class="card overflow-hidden">
-        <table class="w-full text-sm">
-          <thead class="bg-surface-secondary border-b border-border">
-            <tr>
-              <th class="text-left px-3 py-2 font-medium text-content-secondary w-8">状态</th>
-              <th class="text-left px-3 py-2 font-medium text-content-secondary">标题</th>
-              <th class="text-left px-3 py-2 font-medium text-content-secondary w-20">优先级</th>
-              <th class="text-left px-3 py-2 font-medium text-content-secondary w-24">日期</th>
-              <th class="text-left px-3 py-2 font-medium text-content-secondary w-32">标签</th>
-              <th
-                v-for="field in store.customFields"
-                :key="field.id"
-                class="text-left px-3 py-2 font-medium text-content-secondary w-24"
-              >
-                {{ field.name }}
-              </th>
-              <th class="text-left px-3 py-2 font-medium text-content-secondary w-16">操作</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-border">
-            <tr v-for="todo in store.listTodos" :key="todo.id" class="hover:bg-surface-secondary/50 transition-colors">
-              <!-- Status -->
-              <td class="px-3 py-2">
-                <button @click="handleToggleStatus(todo)" class="focus:outline-none">
-                  <span
-                    class="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors"
-                    :class="statusClass(todo.status)"
-                  >
-                    <svg v-if="todo.status === 'done'" class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                      <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
-                    </svg>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm" style="min-width: 700px;">
+            <thead class="bg-surface-secondary border-b border-border">
+              <tr>
+                <th class="text-left px-3 py-2 font-medium text-content-secondary w-20 sticky left-0 bg-surface-secondary z-10">状态</th>
+                <th class="text-left px-3 py-2 font-medium text-content-secondary min-w-[200px]">标题</th>
+                <th class="text-left px-3 py-2 font-medium text-content-secondary w-20">优先级</th>
+                <th class="text-left px-3 py-2 font-medium text-content-secondary w-24">日期</th>
+                <th class="text-left px-3 py-2 font-medium text-content-secondary w-32">标签</th>
+                <th
+                  v-for="field in store.customFields"
+                  :key="field.id"
+                  class="text-left px-3 py-2 font-medium text-content-secondary w-24"
+                >
+                  {{ field.name }}
+                </th>
+                <th class="text-left px-3 py-2 font-medium text-content-secondary w-16 sticky right-0 bg-surface-secondary z-10 border-l border-border">操作</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-border">
+              <tr v-for="todo in store.listTodos" :key="todo.id" class="hover:bg-surface-secondary/50 transition-colors">
+                <!-- Status -->
+                <td class="px-3 py-2 sticky left-0 z-10" :class="statusTagBg(todo.status)">
+                  <button @click="handleToggleStatus(todo)" class="focus:outline-none w-full text-left">
+                    <span
+                      class="text-xs px-2 py-0.5 rounded-full font-medium"
+                      :class="statusTagClass(todo.status)"
+                    >
+                      {{ statusLabel(todo.status) }}
+                    </span>
+                  </button>
+                </td>
+                <!-- Title -->
+                <td class="px-3 py-2">
+                  <div class="flex items-center gap-2">
+                    <span class="text-content font-medium truncate">{{ todo.title }}</span>
+                    <span v-if="todo.recurrence_type && todo.recurrence_type !== 'none'" class="text-purple-500" title="周期任务">
+                      <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
+                      </svg>
+                    </span>
+                  </div>
+                  <div v-if="todo.notes" class="text-xs text-content-tertiary truncate mt-0.5" v-html="stripHtml(todo.notes)"></div>
+                </td>
+                <!-- Priority -->
+                <td class="px-3 py-2">
+                  <span class="text-xs px-1.5 py-0.5 rounded" :class="priorityClass(todo.priority)">
+                    {{ priorityLabel(todo.priority) }}
                   </span>
-                </button>
-              </td>
-              <!-- Title -->
-              <td class="px-3 py-2">
-                <div class="flex items-center gap-2">
-                  <span class="text-content font-medium truncate">{{ todo.title }}</span>
-                  <span v-if="todo.recurrence_type && todo.recurrence_type !== 'none'" class="text-purple-500" title="周期任务">
-                    <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                      <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
-                    </svg>
-                  </span>
-                </div>
-                <div v-if="todo.notes" class="text-xs text-content-tertiary truncate mt-0.5" v-html="stripHtml(todo.notes)"></div>
-              </td>
-              <!-- Priority -->
-              <td class="px-3 py-2">
-                <span class="text-xs px-1.5 py-0.5 rounded" :class="priorityClass(todo.priority)">
-                  {{ priorityLabel(todo.priority) }}
-                </span>
-              </td>
-              <!-- Date -->
-              <td class="px-3 py-2 text-content-secondary text-xs">
-                {{ todo.todo_date || '' }}
-              </td>
-              <!-- Tags -->
-              <td class="px-3 py-2">
-                <div class="flex gap-1 flex-wrap">
-                  <span
-                    v-for="tag in (todo.tags || [])"
-                    :key="tag.id"
-                    class="tag-badge text-xs border border-transparent"
-                    :style="{ backgroundColor: tag.color + '20', color: tag.color }"
-                  >
-                    {{ tag.name }}
-                  </span>
-                </div>
-              </td>
-              <!-- Custom fields -->
-              <td v-for="field in store.customFields" :key="field.id" class="px-3 py-2 text-content-secondary text-xs">
-                {{ getCustomFieldValue(todo, field.id) }}
-              </td>
-              <!-- Actions -->
-              <td class="px-3 py-2">
-                <button @click="openEditModal(todo)" class="text-primary hover:text-primary-hover text-xs">
-                  编辑
-                </button>
-              </td>
-            </tr>
-            <tr v-if="store.listTodos.length === 0">
-              <td :colspan="6 + store.customFields.length" class="px-3 py-8 text-center text-content-tertiary">
-                暂无匹配的待办
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                </td>
+                <!-- Date -->
+                <td class="px-3 py-2 text-content-secondary text-xs">
+                  {{ todo.todo_date || '' }}
+                </td>
+                <!-- Tags -->
+                <td class="px-3 py-2">
+                  <div class="flex gap-1 flex-wrap">
+                    <span
+                      v-for="tag in (todo.tags || [])"
+                      :key="tag.id"
+                      class="tag-badge text-xs border border-transparent"
+                      :style="{ backgroundColor: tag.color + '20', color: tag.color }"
+                    >
+                      {{ tag.name }}
+                    </span>
+                  </div>
+                </td>
+                <!-- Custom fields -->
+                <td v-for="field in store.customFields" :key="field.id" class="px-3 py-2 text-content-secondary text-xs">
+                  {{ getCustomFieldValue(todo, field.id) }}
+                </td>
+                <!-- Actions -->
+                <td class="px-3 py-2 sticky right-0 z-10 border-l border-border" :class="statusTagBg(todo.status)">
+                  <button @click="openEditModal(todo)" class="text-primary hover:text-primary-hover text-xs">
+                    编辑
+                  </button>
+                </td>
+              </tr>
+              <tr v-if="store.listTodos.length === 0">
+                <td :colspan="6 + store.customFields.length" class="px-3 py-8 text-center text-content-tertiary">
+                  暂无匹配的待办
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -275,8 +267,7 @@ function resetFilters() {
   store.listFilter.search = ''
   store.listFilter.status = ''
   store.listFilter.tag_ids = []
-  store.listFilter.start_date = ''
-  store.listFilter.end_date = ''
+  store.listFilter.date = new Date().toISOString().split('T')[0]
   store.listFilter.custom_field_filters = []
   store.listFilter.sort_by = 'todo_date'
   store.listFilter.sort_order = 'desc'
@@ -323,12 +314,30 @@ async function handleToggleStatus(todo) {
   }
 }
 
-function statusClass(status) {
+function statusLabel(status) {
   switch (status) {
-    case 'done': return 'bg-green-500 border-green-500'
-    case 'in_progress': return 'bg-blue-500 border-blue-500'
-    case 'blocked': return 'bg-red-500 border-red-500'
-    default: return 'border-content-tertiary'
+    case 'done': return '已完成'
+    case 'in_progress': return '进行中'
+    case 'blocked': return '已阻塞'
+    default: return '待处理'
+  }
+}
+
+function statusTagClass(status) {
+  switch (status) {
+    case 'done': return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+    case 'in_progress': return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+    case 'blocked': return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+    default: return 'bg-gray-100 text-gray-600 dark:bg-gray-800/30 dark:text-gray-400'
+  }
+}
+
+function statusTagBg(status) {
+  switch (status) {
+    case 'done': return 'bg-green-50/50 dark:bg-green-950/10'
+    case 'in_progress': return 'bg-blue-50/50 dark:bg-blue-950/10'
+    case 'blocked': return 'bg-red-50/50 dark:bg-red-950/10'
+    default: return ''
   }
 }
 
