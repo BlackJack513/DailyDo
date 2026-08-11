@@ -131,7 +131,7 @@
             <label class="text-sm font-medium text-content-secondary text-muted">提醒</label>
             <button
               type="button"
-              @click="if (!props.readonly) form.reminder_enabled = !form.reminder_enabled"
+              @click="form.reminder_enabled = !form.reminder_enabled"
               class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
               :class="[form.reminder_enabled ? 'bg-primary' : 'bg-control', props.readonly ? 'opacity-60 cursor-not-allowed' : '']"
               :disabled="props.readonly"
