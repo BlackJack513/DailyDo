@@ -133,7 +133,7 @@ export const useAppStore = defineStore('app', () => {
     // Load each setting independently — one failure must not block others
     try {
       const t = await db.getSetting('theme')
-      if (t) theme.value = JSON.parse(t)
+      if (t) theme.value = t
     } catch (e) {
       console.error('Failed to load theme:', e)
     }
