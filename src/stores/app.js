@@ -499,6 +499,35 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  // Manually trigger a recurrence group to create the next occurrence
+  async function triggerRecurrenceManually(groupId) {
+    try {
+      const allTodos = await db.getAllTodos()
+      const items = allTodos.filter(
+        t => {
+          const gid = t.recurrence_group_id || `single_${t.id}`
+          return gid === groupId && t.recurrence_type && t.recurrence_type !== 'none' && !t.deleted_at
+        },
+      )
+      if (items.length === 0) return { success: false, message: '未找到该周期任务的记录' }
+
+      // Find the latest item by todo_date
+      const sorted = [...items].sort((a, b) => (b.todo_date || '').localeCompare(a.todo_date || ''))
+      const latest = sorted[0]
+
+      // Load tags and steps
+      latest.tags = await db.getTodoTags(latest.id)
+      latest.steps = await db.getStepsByTodoId(latest.id)
+
+      await createNextRecurrence(latest)
+      await loadTodosForDate(currentDate.value)
+      return { success: true, message: '已成功创建下一次周期任务' }
+    } catch (e) {
+      console.error('Failed to trigger recurrence:', e)
+      return { success: false, message: '创建失败: ' + e }
+    }
+  }
+
   // ─── Trash ──────────────────────────────────────────
   async function loadTrash() {
     trashTodos.value = await db.getTrashTodos()
@@ -727,6 +756,7 @@ export const useAppStore = defineStore('app', () => {
     saveSidebarConfig,
     moveHistoricalTodoToToday,
     checkOverdueRecurrences,
+    triggerRecurrenceManually,
   }
 })
 
