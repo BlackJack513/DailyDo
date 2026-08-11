@@ -100,6 +100,10 @@ export const useAppStore = defineStore('app', () => {
     { id: 'bamboo', name: '竹影', color: '#628C4E' },
     { id: 'starry', name: '星夜', color: '#9B87EB' },
     { id: 'coffee', name: '咖啡时光', color: '#A56937' },
+    { id: 'sunny', name: '暖阳', color: '#F59E0B' },
+    { id: 'ocean', name: '海洋', color: '#0EA5E9' },
+    { id: 'coral', name: '珊瑚', color: '#FB7150' },
+    { id: 'mint', name: '薄荷', color: '#14B882' },
   ]
 
   // Dark themes that need the `dark` class for Tailwind

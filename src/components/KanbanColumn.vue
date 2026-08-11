@@ -15,7 +15,12 @@
         <span class="text-sm font-semibold text-content">{{ title }}</span>
         <span
           class="text-xs px-2 py-0.5 rounded-full font-medium transition-all duration-300"
-          :class="[badgeColor, countAnimate ? 'scale-125' : 'scale-100']"
+          :class="countAnimate ? 'scale-125' : 'scale-100'"
+          :style="{
+            backgroundColor: 'rgb(var(--badge-bg) / 0.15)',
+            color: 'rgb(var(--badge-bg))',
+            border: '1px solid rgb(var(--badge-bg) / 0.3)'
+          }"
           :key="countKey"
         >{{ todos.length }}</span>
         <!-- Count change indicator -->
@@ -303,7 +308,6 @@ const props = defineProps({
   title: { type: String, required: true },
   todos: { type: Array, required: true },
   statusColor: { type: String, default: '' },
-  badgeColor: { type: String, default: '' },
 })
 
 const emit = defineEmits(['drop', 'toggle', 'edit', 'delete', 'toggle-collapse', 'detail', 'history'])
