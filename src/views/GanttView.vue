@@ -119,11 +119,17 @@ function buildSegments(todo) {
   const segments = []
   const logs = todo.logs || []
 
-  // Filter to status-relevant logs
-  const statusLogs = logs.filter(l => l.action === 'created' || l.action === 'status_changed')
+  // Filter logs to only include those matching the selected date
+  const dateLogs = logs.filter(l => l.created_at && l.created_at.substring(0, 10) === selectedDate.value)
+
+  // Filter to status-relevant logs for the selected date
+  const statusLogs = dateLogs.filter(l => l.action === 'created' || l.action === 'status_changed')
 
   if (statusLogs.length === 0) {
-    // No activity data — estimate from created_at and completed_at
+    // No activity data for this date — only use created_at fallback if it matches the selected date
+    if (!todo.created_at || todo.created_at.substring(0, 10) !== selectedDate.value) {
+      return null // created_at is from a different date, skip
+    }
     const startMin = toMinutes(todo.created_at)
     if (startMin === null) {
       // No usable time data at all — skip this todo
@@ -370,13 +376,18 @@ async function loadData() {
   showEmpty.value = false
   try {
     const rawData = await db.getGanttData(selectedDate.value)
-    // Filter to only todos that have valid time data (created_at parseable)
+    // Filter to only todos that have valid time data on the selected date
     ganttData.value = rawData.filter(todo => {
-      const startMin = toMinutes(todo.created_at)
-      if (startMin !== null) return true
-      // Also keep if has activity logs with parseable timestamps
-      const logs = todo.logs || []
-      return logs.some(l => toMinutes(l.created_at) !== null)
+      // Check if any activity log matches the selected date
+      const hasMatchingLogs = (todo.logs || []).some(l =>
+        l.created_at && l.created_at.substring(0, 10) === selectedDate.value
+      )
+      if (hasMatchingLogs) return true
+      // Fallback: only use created_at if it matches the selected date
+      if (todo.created_at && todo.created_at.substring(0, 10) === selectedDate.value) {
+        return toMinutes(todo.created_at) !== null
+      }
+      return false
     })
 
     // Set loading false FIRST so overlay is removed before rendering
