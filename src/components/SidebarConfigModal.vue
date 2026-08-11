@@ -7,7 +7,7 @@
         <div class="px-5 py-4 border-b border-border flex items-center justify-between flex-shrink-0">
           <div>
             <h2 class="text-base font-semibold text-content">侧边栏设置</h2>
-            <p class="text-xs text-content-tertiary mt-0.5">拖拽排序 · 勾选显示</p>
+            <p class="text-xs text-content-tertiary mt-0.5">拖拽排序 · 组内调整 · 勾选显示</p>
           </div>
           <button
             @click="handleClose"
@@ -19,62 +19,103 @@
           </button>
         </div>
 
-        <!-- Module List -->
+        <!-- Group List -->
         <div class="flex-1 overflow-y-auto px-4 py-3" data-sidebar-config-list>
-          <div class="space-y-1.5">
+          <div class="space-y-3">
             <div
-              v-for="(item, index) in localConfig"
-              :key="item.id"
-              data-sidebar-config-item
-              class="flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all select-none"
+              v-for="(group, groupIndex) in localConfig"
+              :key="group.id"
+              data-sidebar-config-group
+              class="rounded-xl border border-border bg-surface-secondary/50 overflow-hidden"
               :class="[
-                dragState && dragState.index === index
-                  ? 'opacity-40 border-dashed border-primary/40 bg-primary/5'
-                  : 'border-border bg-surface-secondary hover:border-primary/20',
-                dragHoverIndex === index ? 'ring-2 ring-primary/30' : '',
+                dragState && dragState.type === 'group' && dragState.index === groupIndex
+                  ? 'opacity-40 border-dashed border-primary/40'
+                  : '',
+                dragHoverIndex >= 0 && dragHoverIndex === groupIndex && dragState?.type === 'group'
+                  ? 'ring-2 ring-primary/30' : '',
               ]"
             >
-              <!-- Drag handle -->
+              <!-- Group Header -->
               <div
-                class="flex-shrink-0 cursor-grab active:cursor-grabbing p-1 -ml-1 rounded-md hover:bg-surface-tertiary text-content-tertiary transition-colors"
-                @mousedown="onMouseDown($event, index)"
+                class="flex items-center gap-2 px-3 py-2 bg-surface-tertiary/50 border-b border-border"
               >
-                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                  <circle cx="9" cy="6" r="1.5" />
-                  <circle cx="15" cy="6" r="1.5" />
-                  <circle cx="9" cy="12" r="1.5" />
-                  <circle cx="15" cy="12" r="1.5" />
-                  <circle cx="9" cy="18" r="1.5" />
-                  <circle cx="15" cy="18" r="1.5" />
-                </svg>
+                <!-- Group drag handle -->
+                <div
+                  class="flex-shrink-0 cursor-grab active:cursor-grabbing p-1 -ml-1 rounded-md hover:bg-surface text-content-tertiary transition-colors"
+                  @mousedown="onGroupMouseDown($event, groupIndex)"
+                >
+                  <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <circle cx="9" cy="6" r="1.5" />
+                    <circle cx="15" cy="6" r="1.5" />
+                    <circle cx="9" cy="12" r="1.5" />
+                    <circle cx="15" cy="12" r="1.5" />
+                    <circle cx="9" cy="18" r="1.5" />
+                    <circle cx="15" cy="18" r="1.5" />
+                  </svg>
+                </div>
+                <span class="flex-1 text-xs font-semibold text-content-secondary uppercase tracking-wider">
+                  {{ group.label }}
+                </span>
               </div>
 
-              <!-- Icon -->
-              <div
-                class="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center"
-                :style="{ backgroundColor: moduleMeta[item.id]?.color + '18' }"
-              >
-                <component
-                  :is="moduleMeta[item.id]?.icon"
-                  class="w-4 h-4"
-                  :style="{ color: moduleMeta[item.id]?.color }"
-                />
+              <!-- Group Items -->
+              <div class="p-1.5 space-y-1">
+                <div
+                  v-for="(item, itemIndex) in group.items"
+                  :key="item.id"
+                  data-sidebar-config-item
+                  class="flex items-center gap-3 px-2.5 py-2 rounded-lg transition-all select-none"
+                  :class="[
+                    dragState && dragState.type === 'item' && dragState.groupIndex === groupIndex && dragState.index === itemIndex
+                      ? 'opacity-40 border border-dashed border-primary/40 bg-primary/5'
+                      : 'hover:bg-surface-tertiary/50',
+                    dragHoverIndex >= 0 && dragState?.type === 'item' && dragState?.groupIndex === groupIndex && dragHoverIndex === itemIndex
+                      ? 'ring-2 ring-primary/30' : '',
+                  ]"
+                >
+                  <!-- Item drag handle -->
+                  <div
+                    class="flex-shrink-0 cursor-grab active:cursor-grabbing p-1 -ml-1 rounded-md hover:bg-surface text-content-tertiary transition-colors"
+                    @mousedown="onItemMouseDown($event, groupIndex, itemIndex)"
+                  >
+                    <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                      <circle cx="9" cy="6" r="1.5" />
+                      <circle cx="15" cy="6" r="1.5" />
+                      <circle cx="9" cy="12" r="1.5" />
+                      <circle cx="15" cy="12" r="1.5" />
+                      <circle cx="9" cy="18" r="1.5" />
+                      <circle cx="15" cy="18" r="1.5" />
+                    </svg>
+                  </div>
+
+                  <!-- Icon -->
+                  <div
+                    class="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center"
+                    :style="{ backgroundColor: moduleMeta[item.id]?.color + '18' }"
+                  >
+                    <component
+                      :is="moduleMeta[item.id]?.icon"
+                      class="w-3.5 h-3.5"
+                      :style="{ color: moduleMeta[item.id]?.color }"
+                    />
+                  </div>
+
+                  <!-- Label -->
+                  <span class="flex-1 text-sm text-content">{{ moduleMeta[item.id]?.label }}</span>
+
+                  <!-- Visibility toggle -->
+                  <button
+                    @click="toggleVisibility(groupIndex, itemIndex)"
+                    class="flex-shrink-0 w-9 h-5 rounded-full transition-colors relative"
+                    :class="item.visible ? 'bg-primary' : 'bg-control'"
+                  >
+                    <span
+                      class="absolute top-0.5 w-4 h-4 rounded-full bg-surface shadow-sm transition-transform"
+                      :class="item.visible ? 'left-[18px]' : 'left-0.5'"
+                    ></span>
+                  </button>
+                </div>
               </div>
-
-              <!-- Label -->
-              <span class="flex-1 text-sm font-medium text-content">{{ moduleMeta[item.id]?.label }}</span>
-
-              <!-- Visibility toggle -->
-              <button
-                @click="toggleVisibility(index)"
-                class="flex-shrink-0 w-9 h-5 rounded-full transition-colors relative"
-                :class="item.visible ? 'bg-primary' : 'bg-control'"
-              >
-                <span
-                  class="absolute top-0.5 w-4 h-4 rounded-full bg-surface shadow-sm transition-transform"
-                  :class="item.visible ? 'left-[18px]' : 'left-0.5'"
-                ></span>
-              </button>
             </div>
           </div>
         </div>
@@ -110,30 +151,30 @@
             transform: 'translate(-50%, -50%)',
           }"
         >
-          <div
-            class="flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 border-primary bg-surface shadow-2xl min-w-[260px]"
-          >
-            <div
-              class="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center"
-              :style="{ backgroundColor: moduleMeta[dragState.item.id]?.color + '18' }"
-            >
-              <component
-                :is="moduleMeta[dragState.item.id]?.icon"
-                class="w-4 h-4"
-                :style="{ color: moduleMeta[dragState.item.id]?.color }"
-              />
+          <template v-if="dragState.type === 'group'">
+            <div class="px-3 py-2 rounded-xl border-2 border-primary bg-surface shadow-2xl min-w-[200px]">
+              <span class="text-xs font-semibold text-content-secondary uppercase tracking-wider">
+                {{ localConfig[dragState.index]?.label }}
+              </span>
             </div>
-            <span class="flex-1 text-sm font-medium text-content">{{ moduleMeta[dragState.item.id]?.label }}</span>
-            <span
-              class="flex-shrink-0 w-9 h-5 rounded-full flex items-center px-0.5"
-              :class="dragState.item.visible ? 'bg-primary' : 'bg-control'"
+          </template>
+          <template v-else>
+            <div
+              class="flex items-center gap-3 px-3 py-2 rounded-xl border-2 border-primary bg-surface shadow-2xl min-w-[220px]"
             >
-              <span
-                class="w-4 h-4 rounded-full bg-surface shadow-sm"
-                :class="dragState.item.visible ? 'ml-auto' : ''"
-              ></span>
-            </span>
-          </div>
+              <div
+                class="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center"
+                :style="{ backgroundColor: moduleMeta[dragState.item.id]?.color + '18' }"
+              >
+                <component
+                  :is="moduleMeta[dragState.item.id]?.icon"
+                  class="w-3.5 h-3.5"
+                  :style="{ color: moduleMeta[dragState.item.id]?.color }"
+                />
+              </div>
+              <span class="flex-1 text-sm text-content">{{ moduleMeta[dragState.item.id]?.label }}</span>
+            </div>
+          </template>
         </div>
       </div>
     </div>
@@ -332,7 +373,7 @@ const moduleMeta = {
   },
 }
 
-// Local working copy of config
+// Local working copy of grouped config
 const localConfig = ref([])
 
 watch(
@@ -340,33 +381,58 @@ watch(
   val => {
     if (val) {
       // Deep copy from store
-      localConfig.value = store.sidebarConfig.map(item => ({ ...item }))
+      localConfig.value = store.sidebarConfig.map(g => ({
+        ...g,
+        items: g.items.map(i => ({ ...i })),
+      }))
     }
   },
 )
 
-function toggleVisibility(index) {
-  localConfig.value[index] = {
-    ...localConfig.value[index],
-    visible: !localConfig.value[index].visible,
+function toggleVisibility(groupIndex, itemIndex) {
+  const group = localConfig.value[groupIndex]
+  group.items[itemIndex] = {
+    ...group.items[itemIndex],
+    visible: !group.items[itemIndex].visible,
   }
 }
 
 function resetDefault() {
   const defaults = [
-    { id: 'today', visible: true },
-    { id: 'calendar', visible: true },
-    { id: 'analytics', visible: true },
-    { id: 'gantt', visible: true },
-    { id: 'tags', visible: true },
-    { id: 'recurrences', visible: true },
-    { id: 'templates', visible: true },
-    { id: 'attachments', visible: true },
-    { id: 'payday', visible: false },
-    { id: 'trash', visible: true },
-    { id: 'settings', visible: true },
+    {
+      id: 'task_entry',
+      label: '任务录入',
+      items: [
+        { id: 'today', visible: true },
+        { id: 'recurrences', visible: true },
+        { id: 'templates', visible: true },
+      ],
+    },
+    {
+      id: 'data_viz',
+      label: '数据可视化',
+      items: [
+        { id: 'calendar', visible: true },
+        { id: 'analytics', visible: true },
+        { id: 'gantt', visible: true },
+      ],
+    },
+    {
+      id: 'system',
+      label: '系统管理',
+      items: [
+        { id: 'tags', visible: true },
+        { id: 'attachments', visible: true },
+        { id: 'payday', visible: false },
+        { id: 'trash', visible: true },
+        { id: 'settings', visible: true },
+      ],
+    },
   ]
-  localConfig.value = defaults.map(item => ({ ...item }))
+  localConfig.value = defaults.map(g => ({
+    ...g,
+    items: g.items.map(i => ({ ...i })),
+  }))
 }
 
 function handleClose() {
@@ -375,7 +441,10 @@ function handleClose() {
 
 async function handleSave() {
   try {
-    await store.saveSidebarConfig(localConfig.value.map(item => ({ ...item })))
+    await store.saveSidebarConfig(localConfig.value.map(g => ({
+      ...g,
+      items: g.items.map(i => ({ ...i })),
+    })))
     emit('save')
     emit('close')
   } catch (e) {
@@ -385,25 +454,43 @@ async function handleSave() {
 }
 
 // ─── Native mouse drag-to-reorder ─────────────────────
-const dragState = ref(null) // { index, item, startY, y, active }
+// dragState: null | { type: 'group'|'item', index, groupIndex?, item?, startX, startY, x, y, active }
+const dragState = ref(null)
 const dragHoverIndex = ref(-1)
 const DRAG_THRESHOLD = 5
-const itemRefs = ref([])
 
-function onMouseDown(e, index) {
+// ── Group drag ──
+function onGroupMouseDown(e, groupIndex) {
   if (e.button !== 0) return
   e.preventDefault()
-
   dragState.value = {
-    index,
-    item: { ...localConfig.value[index] },
+    type: 'group',
+    index: groupIndex,
     startX: e.clientX,
     startY: e.clientY,
     x: e.clientX,
     y: e.clientY,
     active: false,
   }
+  document.addEventListener('mousemove', onMouseMove)
+  document.addEventListener('mouseup', onMouseUp)
+}
 
+// ── Item drag (within group) ──
+function onItemMouseDown(e, groupIndex, itemIndex) {
+  if (e.button !== 0) return
+  e.preventDefault()
+  dragState.value = {
+    type: 'item',
+    groupIndex,
+    index: itemIndex,
+    item: { ...localConfig.value[groupIndex].items[itemIndex] },
+    startX: e.clientX,
+    startY: e.clientY,
+    x: e.clientX,
+    y: e.clientY,
+    active: false,
+  }
   document.addEventListener('mousemove', onMouseMove)
   document.addEventListener('mouseup', onMouseUp)
 }
@@ -421,37 +508,52 @@ function onMouseMove(e) {
   if (dragState.value.active) {
     dragState.value.x = e.clientX
     dragState.value.y = e.clientY
-
-    // Determine which item we're hovering over
     detectHoverIndex(e.clientY)
   }
 }
 
 function detectHoverIndex(clientY) {
-  // Find the list container
-  const listEl = document.querySelector('[data-sidebar-config-list]')
-  if (!listEl) return
-
-  const items = listEl.querySelectorAll('[data-sidebar-config-item]')
-  let hoverIdx = -1
-
-  items.forEach((el, idx) => {
-    const rect = el.getBoundingClientRect()
-    const midY = rect.top + rect.height / 2
-    if (clientY < midY && hoverIdx === -1) {
-      hoverIdx = idx
+  if (dragState.value?.type === 'group') {
+    // Detect group hover
+    const listEl = document.querySelector('[data-sidebar-config-list]')
+    if (!listEl) return
+    const groups = listEl.querySelectorAll('[data-sidebar-config-group]')
+    let hoverIdx = -1
+    groups.forEach((el, idx) => {
+      const rect = el.getBoundingClientRect()
+      const midY = rect.top + rect.height / 2
+      if (clientY < midY && hoverIdx === -1) {
+        hoverIdx = idx
+      }
+    })
+    if (hoverIdx === -1 && groups.length > 0) {
+      const lastRect = groups[groups.length - 1].getBoundingClientRect()
+      if (clientY > lastRect.top + lastRect.height / 2) {
+        hoverIdx = groups.length - 1
+      }
     }
-  })
-
-  // If below all items, set to last
-  if (hoverIdx === -1 && items.length > 0) {
-    const lastRect = items[items.length - 1].getBoundingClientRect()
-    if (clientY > lastRect.top + lastRect.height / 2) {
-      hoverIdx = items.length - 1
+    dragHoverIndex.value = hoverIdx
+  } else if (dragState.value?.type === 'item') {
+    // Detect item hover within the same group
+    const groupEl = document.querySelectorAll('[data-sidebar-config-group]')[dragState.value.groupIndex]
+    if (!groupEl) return
+    const items = groupEl.querySelectorAll('[data-sidebar-config-item]')
+    let hoverIdx = -1
+    items.forEach((el, idx) => {
+      const rect = el.getBoundingClientRect()
+      const midY = rect.top + rect.height / 2
+      if (clientY < midY && hoverIdx === -1) {
+        hoverIdx = idx
+      }
+    })
+    if (hoverIdx === -1 && items.length > 0) {
+      const lastRect = items[items.length - 1].getBoundingClientRect()
+      if (clientY > lastRect.top + lastRect.height / 2) {
+        hoverIdx = items.length - 1
+      }
     }
+    dragHoverIndex.value = hoverIdx
   }
-
-  dragHoverIndex.value = hoverIdx
 }
 
 function onMouseUp(e) {
@@ -461,19 +563,36 @@ function onMouseUp(e) {
   if (!dragState.value) return
 
   const wasActive = dragState.value.active
-  const fromIndex = dragState.value.index
+  const dragType = dragState.value.type
 
-  dragState.value = null
+  if (dragType === 'group') {
+    const fromIndex = dragState.value.index
+    dragState.value = null
 
-  if (!wasActive || dragHoverIndex.value === -1 || dragHoverIndex.value === fromIndex) {
-    dragHoverIndex.value = -1
-    return
+    if (!wasActive || dragHoverIndex.value === -1 || dragHoverIndex.value === fromIndex) {
+      dragHoverIndex.value = -1
+      return
+    }
+    // Reorder groups
+    const toIndex = dragHoverIndex.value
+    const group = localConfig.value.splice(fromIndex, 1)[0]
+    localConfig.value.splice(toIndex, 0, group)
+  } else if (dragType === 'item') {
+    const groupIndex = dragState.value.groupIndex
+    const fromIndex = dragState.value.index
+    dragState.value = null
+
+    if (!wasActive || dragHoverIndex.value === -1 || dragHoverIndex.value === fromIndex) {
+      dragHoverIndex.value = -1
+      return
+    }
+    // Reorder items within group
+    const toIndex = dragHoverIndex.value
+    const group = localConfig.value[groupIndex]
+    const item = group.items.splice(fromIndex, 1)[0]
+    group.items.splice(toIndex, 0, item)
   }
 
-  // Reorder
-  const toIndex = dragHoverIndex.value
-  const item = localConfig.value.splice(fromIndex, 1)[0]
-  localConfig.value.splice(toIndex, 0, item)
   dragHoverIndex.value = -1
 }
 

@@ -34,21 +34,43 @@ export const useAppStore = defineStore('app', () => {
   // Settings loaded flag
   const settingsLoaded = ref(false)
 
-  // Sidebar config: ordered array of { id, visible }
-  const defaultSidebarModules = [
-    { id: 'today', visible: true },
-    { id: 'calendar', visible: true },
-    { id: 'analytics', visible: true },
-    { id: 'gantt', visible: true },
-    { id: 'tags', visible: true },
-    { id: 'recurrences', visible: true },
-    { id: 'templates', visible: true },
-    { id: 'attachments', visible: true },
-    { id: 'payday', visible: false },
-    { id: 'trash', visible: true },
-    { id: 'settings', visible: true },
+  // Sidebar config: grouped structure
+  // Each group: { id, label, items: [{ id, visible }] }
+  const defaultSidebarGroups = [
+    {
+      id: 'task_entry',
+      label: '任务录入',
+      items: [
+        { id: 'today', visible: true },
+        { id: 'recurrences', visible: true },
+        { id: 'templates', visible: true },
+      ],
+    },
+    {
+      id: 'data_viz',
+      label: '数据可视化',
+      items: [
+        { id: 'calendar', visible: true },
+        { id: 'analytics', visible: true },
+        { id: 'gantt', visible: true },
+      ],
+    },
+    {
+      id: 'system',
+      label: '系统管理',
+      items: [
+        { id: 'tags', visible: true },
+        { id: 'attachments', visible: true },
+        { id: 'payday', visible: false },
+        { id: 'trash', visible: true },
+        { id: 'settings', visible: true },
+      ],
+    },
   ]
-  const sidebarConfig = ref(defaultSidebarModules.map(item => ({ ...item })))
+  const sidebarConfig = ref(defaultSidebarGroups.map(g => ({
+    ...g,
+    items: g.items.map(i => ({ ...i })),
+  })))
 
   // Stats
   const overviewStats = ref({
@@ -134,26 +156,46 @@ export const useAppStore = defineStore('app', () => {
       if (raw) {
         const parsed = JSON.parse(raw)
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // Validate items have { id, visible } shape
-          const valid = parsed.every(item => item && typeof item.id === 'string' && typeof item.visible === 'boolean')
-          if (valid) {
-            // Merge: add any default modules missing from saved config (e.g. new modules)
-            const existingIds = new Set(parsed.map(item => item.id))
-            const merged = [...parsed]
-            for (const def of defaultSidebarModules) {
-              if (!existingIds.has(def.id)) {
-                merged.push({ id: def.id, visible: def.visible })
-              }
+          // Detect format: new grouped format has { id, label, items }
+          const isNewFormat = parsed[0] && Array.isArray(parsed[0].items)
+          if (isNewFormat) {
+            // Validate new format
+            const valid = parsed.every(g =>
+              g && typeof g.id === 'string' && typeof g.label === 'string' &&
+              Array.isArray(g.items) && g.items.every(i => i && typeof i.id === 'string' && typeof i.visible === 'boolean')
+            )
+            if (valid) {
+              sidebarConfig.value = parsed
+              return
             }
-            sidebarConfig.value = merged
-            return
+            console.warn('Sidebar config has invalid grouped format, resetting to defaults')
           } else {
+            // Old flat format: [{ id, visible }, ...] — migrate to grouped
+            const valid = parsed.every(item => item && typeof item.id === 'string' && typeof item.visible === 'boolean')
+            if (valid) {
+              const visibilityMap = {}
+              for (const item of parsed) {
+                visibilityMap[item.id] = item.visible
+              }
+              sidebarConfig.value = defaultSidebarGroups.map(g => ({
+                ...g,
+                items: g.items.map(i => ({
+                  id: i.id,
+                  visible: visibilityMap[i.id] !== undefined ? visibilityMap[i.id] : i.visible,
+                })),
+              }))
+              await db.setSetting('sidebar_config', JSON.stringify(sidebarConfig.value))
+              return
+            }
             console.warn('Sidebar config has invalid format, resetting to defaults')
           }
         }
       }
       // No saved config or invalid — use defaults and persist them
-      sidebarConfig.value = defaultSidebarModules.map(item => ({ ...item }))
+      sidebarConfig.value = defaultSidebarGroups.map(g => ({
+        ...g,
+        items: g.items.map(i => ({ ...i })),
+      }))
       await db.setSetting('sidebar_config', JSON.stringify(sidebarConfig.value))
     } catch (e) {
       console.error('Failed to load sidebar config:', e)

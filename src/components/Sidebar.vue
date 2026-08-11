@@ -19,23 +19,32 @@
     </div>
 
     <!-- Navigation -->
-    <nav v-if="store.settingsLoaded" class="flex-1 px-3 space-y-1 overflow-y-auto">
-      <router-link
-        v-for="item in navItems"
-        :key="item.path"
-        :to="item.path"
-        class="sidebar-item"
-        :class="{ active: $route.path === item.path }"
-      >
-        <component :is="item.icon" class="w-5 h-5" />
-        <span>{{ item.label }}</span>
-        <span
-          v-if="item.badge && item.badge > 0"
-          class="ml-auto text-xs bg-red-500 text-white rounded-full px-1.5 py-0.5 min-w-[20px] text-center"
-        >
-          {{ item.badge }}
-        </span>
-      </router-link>
+    <nav v-if="store.settingsLoaded" class="flex-1 px-3 overflow-y-auto">
+      <div v-for="group in navGroups" :key="group.id" class="mb-1">
+        <!-- Group label -->
+        <div v-if="group.label" class="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-content-tertiary/60">
+          {{ group.label }}
+        </div>
+        <!-- Group items -->
+        <div class="space-y-0.5">
+          <router-link
+            v-for="item in group.items"
+            :key="item.path"
+            :to="item.path"
+            class="sidebar-item"
+            :class="{ active: $route.path === item.path }"
+          >
+            <component :is="item.icon" class="w-5 h-5" />
+            <span>{{ item.label }}</span>
+            <span
+              v-if="item.badge && item.badge > 0"
+              class="ml-auto text-xs bg-red-500 text-white rounded-full px-1.5 py-0.5 min-w-[20px] text-center"
+            >
+              {{ item.badge }}
+            </span>
+          </router-link>
+        </div>
+      </div>
     </nav>
     <nav v-else class="flex-1 px-3 space-y-1 overflow-y-auto">
       <!-- Skeleton loading -->
@@ -331,15 +340,22 @@ const allNavItems = {
   settings: { path: '/settings', label: '设置', icon: SettingsIcon, id: 'settings' },
 }
 
-const navItems = computed(() => {
+const navGroups = computed(() => {
   const config = store.sidebarConfig
   if (!config || config.length === 0) {
-    return Object.values(allNavItems)
+    // Fallback: single group with all items
+    return [{ id: 'default', label: '', items: Object.values(allNavItems) }]
   }
   return config
-    .filter(item => item.visible)
-    .map(item => allNavItems[item.id])
-    .filter(Boolean)
+    .filter(group => group.items && group.items.some(item => item.visible))
+    .map(group => ({
+      ...group,
+      items: group.items
+        .filter(item => item.visible)
+        .map(item => allNavItems[item.id])
+        .filter(Boolean),
+    }))
+    .filter(group => group.items.length > 0)
 })
 
 // Mini mode
