@@ -11,9 +11,21 @@
       :class="isDragOver ? 'bg-primary/10' : ''"
       @click="collapsed = !collapsed"
     >
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 relative">
         <span class="text-sm font-semibold text-content">{{ title }}</span>
-        <span class="text-xs px-2 py-0.5 rounded-full font-medium" :class="badgeColor">{{ todos.length }}</span>
+        <span
+          class="text-xs px-2 py-0.5 rounded-full font-medium transition-all duration-300"
+          :class="[badgeColor, countAnimate ? 'scale-125' : 'scale-100']"
+          :key="countKey"
+        >{{ todos.length }}</span>
+        <!-- Count change indicator -->
+        <span
+          v-if="countDelta !== 0"
+          class="absolute -top-1 -right-2 text-xs font-bold animate-bounce-out pointer-events-none"
+          :class="countDelta > 0 ? 'text-green-500' : 'text-red-500'"
+        >
+          {{ countDelta > 0 ? '+' + countDelta : countDelta }}
+        </span>
       </div>
     </div>
 
@@ -35,9 +47,27 @@
             'opacity-40': dragState && dragState.todo.id === todo.id,
             'opacity-60': todo.status === 'done',
             'cursor-grab': !dragState || dragState.todo.id !== todo.id,
+            'animate-completion': completedTodoIds.has(todo.id),
           },
         ]"
       >
+        <!-- Confetti burst for completed todos -->
+        <div
+          v-if="completedTodoIds.has(todo.id)"
+          class="absolute inset-0 pointer-events-none overflow-hidden rounded-xl"
+        >
+          <div
+            v-for="i in 12"
+            :key="i"
+            class="confetti-particle absolute"
+            :style="{
+              left: '50%',
+              top: '50%',
+              '--angle': (i * 30) + 'deg',
+              '--color': confettiColors[i % confettiColors.length],
+            }"
+          ></div>
+        </div>
         <!-- Status toggle -->
         <button
           @click.stop="$emit('toggle', todo)"
@@ -264,7 +294,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useAppStore } from '../stores/app'
 
 const store = useAppStore()
@@ -282,6 +312,64 @@ const isDragOver = ref(false)
 const collapsed = ref(false)
 const columnEl = ref(null)
 const dragState = ref(null) // { todo, startX, startY, x, y }
+
+// Count animation
+const prevCount = ref(0)
+const countDelta = ref(0)
+const countAnimate = ref(false)
+const countKey = ref(0)
+
+// Completion animation
+const completedTodoIds = ref(new Set())
+const confettiColors = ['#f59e0b', '#ef4444', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899']
+
+// Watch todos length for count animation
+watch(
+  () => props.todos.length,
+  (newLen, oldLen) => {
+    if (oldLen !== undefined && newLen !== oldLen) {
+      const delta = newLen - oldLen
+      countDelta.value = delta
+      countAnimate.value = true
+      countKey.value++
+      setTimeout(() => {
+        countDelta.value = 0
+        countAnimate.value = false
+      }, 1200)
+    }
+    prevCount.value = newLen
+  },
+)
+
+// Watch for todos becoming done (completion animation)
+watch(
+  () => props.todos,
+  (newTodos, oldTodos) => {
+    if (!oldTodos) return
+    const oldIds = new Set(oldTodos.map(t => t.id))
+    for (const todo of newTodos) {
+      if (todo.status === 'done' && !oldIds.has(todo.id)) {
+        // New todo appeared in done column — trigger animation
+        completedTodoIds.value.add(todo.id)
+        setTimeout(() => {
+          completedTodoIds.value.delete(todo.id)
+        }, 1000)
+      }
+    }
+    // Also check for status changes within existing todos
+    const oldMap = new Map(oldTodos.map(t => [t.id, t]))
+    for (const todo of newTodos) {
+      const oldTodo = oldMap.get(todo.id)
+      if (oldTodo && oldTodo.status !== 'done' && todo.status === 'done') {
+        completedTodoIds.value.add(todo.id)
+        setTimeout(() => {
+          completedTodoIds.value.delete(todo.id)
+        }, 1000)
+      }
+    }
+  },
+  { deep: true },
+)
 
 const DRAG_THRESHOLD = 5 // pixels before drag initiates
 const statusOrder = { pending: 'pending', in_progress: 'in_progress', blocked: 'blocked', done: 'done' }
@@ -497,3 +585,41 @@ async function onStepClick(step) {
   await store.toggleStep(step.id)
 }
 </script>
+
+<style scoped>
+@keyframes bounce-out {
+  0% { opacity: 1; transform: translateY(0) scale(1); }
+  50% { opacity: 0.8; transform: translateY(-10px) scale(1.1); }
+  100% { opacity: 0; transform: translateY(-24px) scale(0.8); }
+}
+.animate-bounce-out {
+  animation: bounce-out 1.2s ease-out forwards;
+}
+
+@keyframes completion-flash {
+  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); transform: scale(1); }
+  30% { box-shadow: 0 0 20px 4px rgba(16, 185, 129, 0.3); transform: scale(1.02); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); transform: scale(1); }
+}
+.animate-completion {
+  animation: completion-flash 1s ease-out;
+}
+
+@keyframes confetti-burst {
+  0% {
+    transform: translate(-50%, -50%) rotate(var(--angle)) translateY(0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) rotate(var(--angle)) translateY(-50px) scale(0.3);
+    opacity: 0;
+  }
+}
+.confetti-particle {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color);
+  animation: confetti-burst 0.8s ease-out forwards;
+}
+</style>
