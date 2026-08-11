@@ -219,6 +219,9 @@ function renderChart() {
     // Build custom series data — skip todos with no valid time data
     const renderData = []
     const validTodos = []
+    let globalMin = 1440 // Start with max possible
+    let globalMax = 0 // Start with min possible
+    
     ganttData.value.forEach((todo, idx) => {
       const segments = buildSegments(todo)
       if (!segments) return // skip todos without usable time data
@@ -232,6 +235,9 @@ function renderChart() {
             color: statusColors[seg.status] || '#94a3b8',
           },
         })
+        // Track min/max for dynamic X-axis range
+        if (seg.start < globalMin) globalMin = seg.start
+        if (seg.end > globalMax) globalMax = seg.end
       })
     })
 
@@ -243,6 +249,19 @@ function renderChart() {
       return
     }
     showEmpty.value = false
+
+    // Calculate dynamic X-axis range with padding
+    const padding = 30 // 30 minutes padding on each side
+    const xAxisMin = Math.max(0, globalMin - padding)
+    const xAxisMax = Math.min(1440, globalMax + padding)
+    
+    // Determine appropriate interval based on time range
+    const timeRange = xAxisMax - xAxisMin
+    let interval = 120 // Default: every 2 hours
+    if (timeRange <= 240) interval = 30 // 30 min intervals for ranges <= 4 hours
+    else if (timeRange <= 480) interval = 60 // 1 hour intervals for ranges <= 8 hours
+    else if (timeRange <= 720) interval = 90 // 1.5 hour intervals for ranges <= 12 hours
+    // else keep 120 min intervals for larger ranges
 
     // Prepare yAxis categories from valid todos only
     const categories = validTodos.map(t => {
@@ -276,13 +295,14 @@ function renderChart() {
       },
       xAxis: {
         type: 'value',
-        min: 0,
-        max: 1440,
-        interval: 120,
+        min: xAxisMin,
+        max: xAxisMax,
+        interval: interval,
         axisLabel: {
           formatter(val) {
             const h = Math.floor(val / 60)
-            return `${String(h).padStart(2, '0')}:00`
+            const m = val % 60
+            return m === 0 ? `${String(h).padStart(2, '0')}:00` : `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
           },
           color: subTextColor,
           fontSize: 11,
