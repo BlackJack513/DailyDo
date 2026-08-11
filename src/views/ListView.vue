@@ -140,16 +140,16 @@
                   </button>
                 </td>
                 <!-- Title -->
-                <td class="px-3 py-2">
+                <td class="px-3 py-2 max-w-0">
                   <div class="flex items-center gap-2">
-                    <span class="text-content font-medium truncate">{{ todo.title }}</span>
-                    <span v-if="todo.recurrence_type && todo.recurrence_type !== 'none'" class="text-purple-500" title="周期任务">
+                    <span class="text-content font-medium truncate block max-w-full">{{ todo.title }}</span>
+                    <span v-if="todo.recurrence_type && todo.recurrence_type !== 'none'" class="text-purple-500 flex-shrink-0" title="周期任务">
                       <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
                         <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
                       </svg>
                     </span>
                   </div>
-                  <div v-if="todo.notes" class="text-xs text-content-tertiary truncate mt-0.5" v-html="stripHtml(todo.notes)"></div>
+                  <div v-if="todo.notes" class="text-xs text-content-tertiary truncate mt-0.5 block max-w-full" :title="stripHtml(todo.notes)">{{ stripHtml(todo.notes) }}</div>
                 </td>
                 <!-- Priority -->
                 <td class="px-3 py-2">
@@ -180,9 +180,14 @@
                 </td>
                 <!-- Actions -->
                 <td class="px-3 py-2 sticky right-0 z-10 border-l border-border" :class="statusTagBg(todo.status)">
-                  <button @click="openEditModal(todo)" class="text-primary hover:text-primary-hover text-xs">
-                    编辑
-                  </button>
+                  <div class="flex gap-2">
+                    <button @click="openViewModal(todo)" class="text-content-secondary hover:text-content text-xs">
+                      查看
+                    </button>
+                    <button @click="openEditModal(todo)" class="text-primary hover:text-primary-hover text-xs">
+                      编辑
+                    </button>
+                  </div>
                 </td>
               </tr>
               <tr v-if="store.listTodos.length === 0">
@@ -196,10 +201,11 @@
       </div>
     </div>
 
-    <!-- Add/Edit Modal -->
+    <!-- Add/Edit/View Modal -->
     <AddTodoModal
       :show="showModal"
-      :todo="editingTodo"
+      :todo="editingTodo || viewingTodo"
+      :readonly="!!viewingTodo"
       @close="closeModal"
       @submit="handleSubmit"
     />
@@ -215,6 +221,7 @@ const store = useAppStore()
 
 const showModal = ref(false)
 const editingTodo = ref(null)
+const viewingTodo = ref(null)
 const customFieldFilterValues = ref({})
 
 let debounceTimer = null
@@ -277,17 +284,26 @@ function resetFilters() {
 
 function openAddModal() {
   editingTodo.value = null
+  viewingTodo.value = null
   showModal.value = true
 }
 
 function openEditModal(todo) {
   editingTodo.value = { ...todo }
+  viewingTodo.value = null
+  showModal.value = true
+}
+
+function openViewModal(todo) {
+  viewingTodo.value = { ...todo }
+  editingTodo.value = null
   showModal.value = true
 }
 
 function closeModal() {
   showModal.value = false
   editingTodo.value = null
+  viewingTodo.value = null
 }
 
 async function handleSubmit(data) {

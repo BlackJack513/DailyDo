@@ -5,7 +5,7 @@
       <!-- Header -->
       <div class="flex items-center justify-between px-6 py-4 border-b border-border">
         <h3 class="text-lg font-semibold text-content">
-          {{ isEditing ? '编辑待办' : '新建待办' }}
+          {{ props.readonly ? '查看待办' : isEditing ? '编辑待办' : '新建待办' }}
         </h3>
         <button @click="$emit('close')" class="p-1 rounded-lg hover:bg-surface-tertiary text-content-tertiary">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -122,7 +122,7 @@
         <!-- Due Date -->
         <div>
           <label class="block text-sm font-medium text-content-secondary text-muted mb-1.5">截止日期</label>
-          <input v-model="form.due_date" type="date" class="input-field" />
+          <input v-model="form.due_date" type="date" class="input-field" :disabled="props.readonly" />
         </div>
 
         <!-- Reminder -->
@@ -131,9 +131,10 @@
             <label class="text-sm font-medium text-content-secondary text-muted">提醒</label>
             <button
               type="button"
-              @click="form.reminder_enabled = !form.reminder_enabled"
+              @click="if (!props.readonly) form.reminder_enabled = !form.reminder_enabled"
               class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
-              :class="form.reminder_enabled ? 'bg-primary' : 'bg-control'"
+              :class="[form.reminder_enabled ? 'bg-primary' : 'bg-control', props.readonly ? 'opacity-60 cursor-not-allowed' : '']"
+              :disabled="props.readonly"
             >
               <span
                 class="inline-block h-3.5 w-3.5 transform rounded-full bg-surface transition-transform shadow"
@@ -142,7 +143,7 @@
             </button>
           </div>
           <div v-if="form.reminder_enabled">
-            <input v-model="form.reminder_at" type="datetime-local" class="input-field" />
+            <input v-model="form.reminder_at" type="datetime-local" class="input-field" :disabled="props.readonly" />
           </div>
         </div>
 
@@ -192,6 +193,7 @@
                 v-if="field.field_type === 'enum'"
                 v-model="form.customFieldValues[field.id]"
                 class="input-field py-1.5 text-sm"
+                :disabled="props.readonly"
               >
                 <option value="">-- 请选择 --</option>
                 <option
@@ -206,6 +208,7 @@
                 type="text"
                 class="input-field py-1.5 text-sm"
                 :placeholder="'输入' + field.name"
+                :disabled="props.readonly"
               />
             </div>
           </div>
@@ -289,6 +292,7 @@
             <span class="text-sm text-content truncate flex-1">{{ form.attachment_name }}</span>
             <span class="text-xs text-content-tertiary">{{ formatSize(form.attachment_size) }}</span>
             <button
+              v-if="!props.readonly"
               @click="removeAttachment"
               class="p-1 rounded hover:bg-red-50 hover:bg-red-50/20 text-red-400 hover:text-red-500"
             >
@@ -298,7 +302,7 @@
             </button>
           </div>
           <button
-            v-else
+            v-else-if="!props.readonly"
             @click="uploadAttachment"
             class="flex items-center gap-2 text-sm text-primary hover:text-primary-hover"
           >
@@ -318,16 +322,23 @@
         <!-- Notes (Rich Text) -->
         <div>
           <label class="block text-sm font-medium text-content-secondary text-muted mb-1.5">备注（选填）</label>
-          <RichEditor v-model="form.notes" />
+          <div :class="props.readonly ? 'pointer-events-none opacity-60' : ''">
+            <RichEditor v-model="form.notes" />
+          </div>
         </div>
       </div>
 
       <!-- Footer -->
       <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-border">
-        <button @click="$emit('close')" class="btn-secondary">取消</button>
-        <button @click="submit" class="btn-primary" :disabled="!form.title.trim()">
-          {{ isEditing ? '保存' : '创建' }}
-        </button>
+        <template v-if="props.readonly">
+          <button @click="$emit('close')" class="btn-secondary">关闭</button>
+        </template>
+        <template v-else>
+          <button @click="$emit('close')" class="btn-secondary">取消</button>
+          <button @click="submit" class="btn-primary" :disabled="!form.title.trim()">
+            {{ isEditing ? '保存' : '创建' }}
+          </button>
+        </template>
       </div>
     </div>
   </div>
@@ -347,12 +358,13 @@ const props = defineProps({
   show: Boolean,
   todo: { type: Object, default: null },
   lockedFields: { type: Array, default: () => [] },
+  readonly: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['close', 'submit'])
 
 function isLocked(field) {
-  return props.lockedFields.includes(field)
+  return props.readonly || props.lockedFields.includes(field)
 }
 
 const titleInput = ref(null)
@@ -397,7 +409,9 @@ watch(
   async val => {
     if (val) {
       await nextTick()
-      titleInput.value?.focus()
+      if (!props.readonly) {
+        titleInput.value?.focus()
+      }
       attachmentError.value = ''
       if (props.todo && !props.todo._isNew) {
         isEditing.value = true
