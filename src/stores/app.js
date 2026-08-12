@@ -36,6 +36,7 @@ export const useAppStore = defineStore('app', () => {
     custom_field_filters: [],
     sort_by: 'todo_date',
     sort_order: 'desc',
+    sort_criteria: [{ field: 'todo_date', order: 'desc' }],
   })
 
   // Mini mode
@@ -788,10 +789,11 @@ export const useAppStore = defineStore('app', () => {
     }
     delete filter.date
     listTodos.value = await db.getFilteredTodos(filter)
-    // Load tags and custom field values for each todo
+    // Load tags, custom field values, and steps for each todo
     for (const todo of listTodos.value) {
       todo.tags = await db.getTodoTags(todo.id)
       todo.customFieldValues = await db.getCustomFieldValues(todo.id)
+      todo.steps = await db.getStepsByTodoId(todo.id)
     }
   }
 

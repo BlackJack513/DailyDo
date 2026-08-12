@@ -210,7 +210,7 @@ const moduleMeta = {
     },
   },
   list: {
-    label: '列表视图',
+    label: '全部待办',
     color: '#10b981',
     icon: {
       render: () =>

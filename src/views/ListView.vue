@@ -3,7 +3,7 @@
     <!-- Header -->
     <div class="px-6 pt-5 pb-3 flex items-center justify-between flex-shrink-0">
       <div>
-        <h1 class="text-2xl font-bold text-content">列表视图</h1>
+        <h1 class="text-2xl font-bold text-content">全部待办</h1>
         <p class="text-sm text-content-tertiary mt-0.5">共 {{ store.listTodos.length }} 条待办</p>
       </div>
       <button @click="openAddModal" class="btn-primary text-sm px-4 py-2 flex items-center gap-2">
@@ -85,21 +85,41 @@
           </div>
         </div>
 
-        <!-- Sort -->
-        <div class="flex gap-2 items-center">
-          <span class="text-xs text-content-tertiary">排序:</span>
-          <select v-model="store.listFilter.sort_by" class="input-field text-xs py-1 px-2 w-28" @change="loadData">
-            <option value="todo_date">日期</option>
-            <option value="title">标题</option>
-            <option value="status">状态</option>
-            <option value="priority">优先级</option>
-          </select>
-          <button @click="toggleSortOrder" class="text-xs text-primary hover:text-primary-hover px-2 py-1">
-            {{ store.listFilter.sort_order === 'asc' ? '升序 ↑' : '降序 ↓' }}
-          </button>
-          <button @click="resetFilters" class="text-xs text-content-tertiary hover:text-content px-2 py-1">
-            重置筛选
-          </button>
+        <!-- Multi-field Sort -->
+        <div class="space-y-2">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-xs text-content-tertiary">排序:</span>
+            <div v-for="(criteria, idx) in sortCriteria" :key="idx" class="flex items-center gap-1">
+              <select v-model="criteria.field" class="input-field text-xs py-1 px-2 w-24" @change="applySort">
+                <option value="todo_date">日期</option>
+                <option value="priority">优先级</option>
+                <option value="status">状态</option>
+                <option value="title">标题</option>
+                <option value="created_at">创建时间</option>
+              </select>
+              <button @click="toggleSortDir(idx)" class="text-xs text-primary hover:text-primary-hover px-1.5 py-1">
+                {{ criteria.order === 'asc' ? '升序 ↑' : '降序 ↓' }}
+              </button>
+              <button
+                v-if="sortCriteria.length > 1"
+                @click="removeSortLevel(idx)"
+                class="text-xs text-content-tertiary hover:text-red-500 px-1"
+                title="移除"
+              >
+                ×
+              </button>
+            </div>
+            <button
+              v-if="sortCriteria.length < 3"
+              @click="addSortLevel"
+              class="text-xs text-primary hover:text-primary-hover px-1.5 py-1"
+            >
+              + 添加排序
+            </button>
+            <button @click="resetFilters" class="text-xs text-content-tertiary hover:text-content px-2 py-1 ml-1">
+              重置筛选
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -181,7 +201,7 @@
                 <!-- Actions -->
                 <td class="px-3 py-2 sticky right-0 z-10 border-l border-border" :class="statusTagBg(todo.status)">
                   <div class="flex gap-2">
-                    <button @click="openViewModal(todo)" class="text-content-secondary hover:text-content text-xs">
+                    <button @click="openDetailModal(todo)" class="text-content-secondary hover:text-content text-xs">
                       查看
                     </button>
                     <button @click="openEditModal(todo)" class="text-primary hover:text-primary-hover text-xs">
@@ -201,28 +221,71 @@
       </div>
     </div>
 
-    <!-- Add/Edit/View Modal -->
+    <!-- Add/Edit Modal -->
     <AddTodoModal
       :show="showModal"
-      :todo="editingTodo || viewingTodo"
-      :readonly="!!viewingTodo"
+      :todo="editingTodo"
       @close="closeModal"
       @submit="handleSubmit"
+    />
+
+    <!-- Detail Modal (readonly) -->
+    <TodoDetailModal
+      :show="showDetailModal"
+      :todo="detailTodo"
+      :readonly="true"
+      @close="closeDetailModal"
     />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useAppStore } from '../stores/app'
 import AddTodoModal from '../components/AddTodoModal.vue'
+import TodoDetailModal from '../components/TodoDetailModal.vue'
 
 const store = useAppStore()
 
 const showModal = ref(false)
 const editingTodo = ref(null)
-const viewingTodo = ref(null)
+const showDetailModal = ref(false)
+const detailTodo = ref(null)
 const customFieldFilterValues = ref({})
+
+// Multi-field sort criteria
+const sortCriteria = ref([{ field: 'todo_date', order: 'desc' }])
+
+function syncSortToFilter() {
+  store.listFilter.sort_criteria = sortCriteria.value.map(c => ({ field: c.field, order: c.order }))
+  // Keep legacy fields in sync with primary sort
+  if (sortCriteria.value.length > 0) {
+    store.listFilter.sort_by = sortCriteria.value[0].field
+    store.listFilter.sort_order = sortCriteria.value[0].order
+  }
+}
+
+function applySort() {
+  syncSortToFilter()
+  loadData()
+}
+
+function toggleSortDir(idx) {
+  sortCriteria.value[idx].order = sortCriteria.value[idx].order === 'asc' ? 'desc' : 'asc'
+  applySort()
+}
+
+function addSortLevel() {
+  if (sortCriteria.value.length < 3) {
+    sortCriteria.value.push({ field: 'todo_date', order: 'desc' })
+    applySort()
+  }
+}
+
+function removeSortLevel(idx) {
+  sortCriteria.value.splice(idx, 1)
+  applySort()
+}
 
 let debounceTimer = null
 function debouncedLoad() {
@@ -265,11 +328,6 @@ function toggleTagFilter(tagId) {
   loadData()
 }
 
-function toggleSortOrder() {
-  store.listFilter.sort_order = store.listFilter.sort_order === 'asc' ? 'desc' : 'asc'
-  loadData()
-}
-
 function resetFilters() {
   store.listFilter.search = ''
   store.listFilter.status = ''
@@ -278,32 +336,35 @@ function resetFilters() {
   store.listFilter.custom_field_filters = []
   store.listFilter.sort_by = 'todo_date'
   store.listFilter.sort_order = 'desc'
+  store.listFilter.sort_criteria = [{ field: 'todo_date', order: 'desc' }]
+  sortCriteria.value = [{ field: 'todo_date', order: 'desc' }]
   customFieldFilterValues.value = {}
   loadData()
 }
 
 function openAddModal() {
   editingTodo.value = null
-  viewingTodo.value = null
   showModal.value = true
 }
 
 function openEditModal(todo) {
   editingTodo.value = { ...todo }
-  viewingTodo.value = null
   showModal.value = true
 }
 
-function openViewModal(todo) {
-  viewingTodo.value = { ...todo }
-  editingTodo.value = null
-  showModal.value = true
+function openDetailModal(todo) {
+  detailTodo.value = { ...todo }
+  showDetailModal.value = true
+}
+
+function closeDetailModal() {
+  showDetailModal.value = false
+  detailTodo.value = null
 }
 
 function closeModal() {
   showModal.value = false
   editingTodo.value = null
-  viewingTodo.value = null
 }
 
 async function handleSubmit(data) {
@@ -394,6 +455,8 @@ function stripHtml(html) {
 }
 
 onMounted(() => {
+  // Sync initial sort criteria
+  syncSortToFilter()
   loadData()
 })
 </script>

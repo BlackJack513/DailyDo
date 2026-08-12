@@ -341,7 +341,7 @@ const CountdownIcon = {
 
 const allNavItems = {
   today: { path: '/today', label: '待办列表', icon: TodayIcon, id: 'today' },
-  list: { path: '/list', label: '列表视图', icon: ListIcon, id: 'list' },
+  list: { path: '/list', label: '全部待办', icon: ListIcon, id: 'list' },
   calendar: { path: '/calendar', label: '日历视图', icon: CalendarIcon, id: 'calendar' },
   analytics: { path: '/analytics', label: '统计分析', icon: ChartIcon, id: 'analytics' },
   gantt: { path: '/gantt', label: '甘特图', icon: GanttIcon, id: 'gantt' },

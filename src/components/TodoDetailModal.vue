@@ -79,6 +79,17 @@
                 </svg>
                 {{ recurrenceLabel }}
               </span>
+              <span v-if="todo?.reminder_at" class="inline-flex items-center gap-1 text-xs text-muted">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                  />
+                </svg>
+                提醒 {{ todo.reminder_at }}
+              </span>
             </div>
 
             <!-- Tags -->
@@ -91,6 +102,21 @@
               >
                 {{ tag.name }}
               </span>
+            </div>
+
+            <!-- Custom Fields -->
+            <div v-if="store.customFields.length > 0 && hasCustomFieldValues" class="space-y-2">
+              <p class="text-xs font-medium text-muted uppercase tracking-wider">自定义字段</p>
+              <div class="grid grid-cols-2 gap-2">
+                <div
+                  v-for="field in store.customFields"
+                  :key="field.id"
+                  class="px-3 py-2 rounded-lg bg-surface-2"
+                >
+                  <p class="text-xs text-muted mb-0.5">{{ field.name }}</p>
+                  <p class="text-sm text-content-secondary">{{ getCustomFieldValue(field.id) || '--' }}</p>
+                </div>
+              </div>
             </div>
 
             <!-- Steps -->
@@ -111,8 +137,9 @@
                 <button
                   v-for="(step, index) in todo.steps"
                   :key="step.id || index"
-                  @click="$emit('toggle-step', step)"
-                  class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors hover:bg-surface-2 group"
+                  @click="!readonly && $emit('toggle-step', step)"
+                  class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors group"
+                  :class="readonly ? 'cursor-default' : 'hover:bg-surface-2'"
                 >
                   <span
                     class="flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors"
@@ -223,6 +250,7 @@
               双击待办卡片可查看详情
             </p>
             <button
+              v-if="!readonly"
               @click="$emit('delete', todo)"
               class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-red-500 hover:bg-red-50 hover:bg-red-50/20 transition-colors"
             >
@@ -268,10 +296,14 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/tauri'
+import { useAppStore } from '../stores/app'
+
+const store = useAppStore()
 
 const props = defineProps({
   show: Boolean,
   todo: { type: Object, default: null },
+  readonly: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['close', 'delete', 'toggle-step'])
@@ -291,6 +323,10 @@ function showToast(message, type = 'info') {
 const stepCompleted = computed(() => {
   if (!props.todo?.steps) return 0
   return props.todo.steps.filter(s => s.completed).length
+})
+
+const hasCustomFieldValues = computed(() => {
+  return (props.todo?.customFieldValues || []).some(v => v.value)
 })
 
 const statusLabel = computed(() => {
@@ -335,6 +371,11 @@ const recurrenceLabel = computed(() => {
   const map = { daily: '每日', weekly: '每周', monthly: '每月', yearly: '每年', workday: '工作日' }
   return map[props.todo?.recurrence_type] || ''
 })
+
+function getCustomFieldValue(fieldId) {
+  const cfv = (props.todo?.customFieldValues || []).find(v => v.field_id === fieldId)
+  return cfv ? cfv.value : ''
+}
 
 function formatSize(bytes) {
   if (!bytes) return ''

@@ -1972,6 +1972,12 @@ pub struct CustomFieldFilter {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct SortCriteria {
+    pub field: String,
+    pub order: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TodoFilter {
     pub search: Option<String>,
     pub status: Option<String>,
@@ -1981,6 +1987,7 @@ pub struct TodoFilter {
     pub custom_field_filters: Option<Vec<CustomFieldFilter>>,
     pub sort_by: Option<String>,
     pub sort_order: Option<String>,
+    pub sort_criteria: Option<Vec<SortCriteria>>,
 }
 
 const TODO_COLUMNS_PREFIXED: &str = "t.id, t.title, t.notes, t.status, t.priority, t.due_date, t.todo_date, t.recurrence_type, t.recurrence_config, t.recurrence_group_id, t.recurrence_enabled, t.completed_at, t.created_at, t.updated_at, t.deleted_at, t.attachment_path, t.attachment_name, t.attachment_size, t.reminder_at";
@@ -2064,13 +2071,37 @@ pub fn get_filtered_todos(
     };
 
     let sort_dir = match filter.sort_order.as_deref() {
-        Some("ASC") => "ASC",
+        Some(s) if s.eq_ignore_ascii_case("ASC") => "ASC",
         _ => "DESC",
     };
 
+    // Build ORDER BY clause supporting multi-field sort
+    let order_by = if let Some(ref criteria) = filter.sort_criteria {
+        let mut parts = Vec::new();
+        for c in criteria {
+            let col = match c.field.as_str() {
+                "todo_date" => "t.todo_date",
+                "priority" => "CASE t.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END",
+                "status" => "CASE t.status WHEN 'pending' THEN 0 WHEN 'in_progress' THEN 1 WHEN 'blocked' THEN 2 ELSE 3 END",
+                "created_at" => "t.created_at",
+                "title" => "t.title",
+                _ => "t.todo_date",
+            };
+            let dir = if c.order.eq_ignore_ascii_case("ASC") { "ASC" } else { "DESC" };
+            parts.push(format!("{} {}", col, dir));
+        }
+        if parts.is_empty() {
+            format!("{} {}", sort_column, sort_dir)
+        } else {
+            parts.join(", ")
+        }
+    } else {
+        format!("{} {}", sort_column, sort_dir)
+    };
+
     let query = format!(
-        "SELECT {} FROM todos t {} ORDER BY {} {}",
-        TODO_COLUMNS_PREFIXED, where_clause, sort_column, sort_dir
+        "SELECT {} FROM todos t {} ORDER BY {}",
+        TODO_COLUMNS_PREFIXED, where_clause, order_by
     );
 
     let mut stmt = db.prepare(&query).map_err(|e| e.to_string())?;
