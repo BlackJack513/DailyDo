@@ -284,6 +284,15 @@ pub fn update_todo(state: State<AppState>, todo: Todo) -> Result<(), String> {
 
     // Log activity: status change
     let todo_id = todo.id.unwrap();
+
+    // Auto-complete all steps when status changes to "done"
+    if status == "done" && old_status.as_deref() != Some("done") {
+        let _ = db.execute(
+            "UPDATE todo_steps SET completed=1 WHERE todo_id=?1",
+            params![todo_id],
+        );
+    }
+
     let old_st = old_status.clone().unwrap_or_else(|| "pending".to_string());
     if old_st != status {
         let _ = db.execute(

@@ -152,7 +152,7 @@
               </svg>
               更改位置
             </button>
-            <button v-if="isCustomDataDir" @click="resetDataDirConfirm" class="btn-secondary text-xs px-3 py-1.5">
+            <button @click="resetDataDirConfirm" class="btn-secondary text-xs px-3 py-1.5">
               恢复默认
             </button>
           </div>
@@ -317,13 +317,9 @@ async function changeDataDir() {
       return
     }
     if (!confirm(`确定要将数据迁移到：\n${newPath}\n\n迁移后需要重启应用。`)) return
-    const result = await store.migrateDataDir(newPath)
-    if (result.success) {
-      showToast('数据迁移成功，请重启应用')
-      await loadDataDir()
-    } else {
-      showToast('迁移失败: ' + result.message)
-    }
+    await store.migrateDataDir(newPath)
+    showToast('数据迁移成功，请重启应用')
+    await loadDataDir()
   } catch (e) {
     showToast('更改数据目录失败: ' + e)
   }
@@ -332,13 +328,9 @@ async function changeDataDir() {
 async function resetDataDirConfirm() {
   if (!confirm('确定要恢复默认数据目录吗？\n恢复后需要重启应用，当前自定义目录的数据不会自动删除。')) return
   try {
-    const result = await store.resetDataDir()
-    if (result.success) {
-      showToast('已恢复默认，请重启应用')
-      await loadDataDir()
-    } else {
-      showToast('恢复失败: ' + result.message)
-    }
+    await store.resetDataDir()
+    showToast('已恢复默认，请重启应用')
+    await loadDataDir()
   } catch (e) {
     showToast('恢复默认失败: ' + e)
   }
