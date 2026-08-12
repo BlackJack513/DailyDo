@@ -79,6 +79,7 @@ export const useAppStore = defineStore('app', () => {
         { id: 'tags', visible: true },
         { id: 'attachments', visible: true },
         { id: 'payday', visible: false },
+        { id: 'customFields', visible: true },
         { id: 'trash', visible: true },
         { id: 'settings', visible: true },
       ],
@@ -199,6 +200,19 @@ export const useAppStore = defineStore('app', () => {
                 if (g.id === 'task_entry') {
                   if (!g.items.find(i => i.id === 'list')) {
                     g.items.splice(1, 0, { id: 'list', visible: true })
+                    migrated = true
+                  }
+                }
+              }
+              // Migrate: ensure 'customFields' module exists in system group
+              for (const g of parsed) {
+                if (g.id === 'system') {
+                  if (!g.items.find(i => i.id === 'customFields')) {
+                    // Insert before 'trash' if it exists, otherwise at end before 'settings'
+                    const trashIdx = g.items.findIndex(i => i.id === 'trash')
+                    const settingsIdx = g.items.findIndex(i => i.id === 'settings')
+                    const insertIdx = trashIdx >= 0 ? trashIdx : settingsIdx >= 0 ? settingsIdx : g.items.length
+                    g.items.splice(insertIdx, 0, { id: 'customFields', visible: true })
                     migrated = true
                   }
                 }

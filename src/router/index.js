@@ -14,6 +14,7 @@ const routes = [
   { path: '/attachments', name: 'attachments', component: () => import('../views/AttachmentsView.vue') },
   { path: '/payday', name: 'payday', component: () => import('../views/PaydayView.vue') },
   { path: '/trash', name: 'trash', component: () => import('../views/TrashView.vue') },
+  { path: '/custom-fields', name: 'custom-fields', component: () => import('../views/CustomFieldsView.vue') },
   { path: '/settings', name: 'settings', component: () => import('../views/SettingsView.vue') },
 ]
 
