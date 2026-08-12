@@ -72,7 +72,7 @@
               @change="updateCustomFieldFilters"
             >
               <option value="">全部</option>
-              <option v-for="val in getEnumValues(field)" :key="val" :value="val">{{ val }}</option>
+              <option v-for="ev in getEnumValues(field)" :key="ev.value" :value="ev.value">{{ ev.note ? `${ev.value}（${ev.note}）` : ev.value }}</option>
             </select>
             <input
               v-else
@@ -438,7 +438,11 @@ function priorityLabel(priority) {
 
 function getEnumValues(field) {
   try {
-    return JSON.parse(field.enum_values || '[]')
+    const arr = JSON.parse(field.enum_values || '[]')
+    return arr.map(item => {
+      if (typeof item === 'string') return { value: item, note: '' }
+      return { value: item.value || '', note: item.note || '' }
+    })
   } catch {
     return []
   }

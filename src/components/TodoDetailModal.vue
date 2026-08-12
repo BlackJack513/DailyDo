@@ -114,7 +114,34 @@
                   class="px-3 py-2 rounded-lg bg-surface-2"
                 >
                   <p class="text-xs text-muted mb-0.5">{{ field.name }}</p>
-                  <p class="text-sm text-content-secondary">{{ getCustomFieldValue(field.id) || '--' }}</p>
+                  <div class="flex items-center gap-1.5">
+                    <p class="text-sm text-content-secondary flex-1 truncate">{{ getCustomFieldValue(field.id) || '--' }}</p>
+                    <template v-if="field.field_type === 'enum' && getEnumNote(field.id, getCustomFieldValue(field.id))">
+                      <span
+                        class="text-xs text-primary cursor-help"
+                        :title="getEnumNote(field.id, getCustomFieldValue(field.id))"
+                      >
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </span>
+                      <button
+                        @click="copyEnumNote(field.id, getCustomFieldValue(field.id))"
+                        class="text-xs text-muted hover:text-primary transition-colors"
+                        title="复制备注"
+                      >
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                        </svg>
+                      </button>
+                    </template>
+                  </div>
+                  <p
+                    v-if="field.field_type === 'enum' && getEnumNote(field.id, getCustomFieldValue(field.id))"
+                    class="text-xs text-content-tertiary mt-1 leading-relaxed"
+                  >
+                    {{ getEnumNote(field.id, getCustomFieldValue(field.id)) }}
+                  </p>
                 </div>
               </div>
             </div>
@@ -375,6 +402,42 @@ const recurrenceLabel = computed(() => {
 function getCustomFieldValue(fieldId) {
   const cfv = (props.todo?.customFieldValues || []).find(v => v.field_id === fieldId)
   return cfv ? cfv.value : ''
+}
+
+/** Get the note for an enum value of a given field */
+function getEnumNote(fieldId, value) {
+  if (!value) return ''
+  const field = store.customFields.find(f => f.id === fieldId)
+  if (!field || field.field_type !== 'enum') return ''
+  try {
+    const enums = JSON.parse(field.enum_values || '[]')
+    const item = enums.find(e => {
+      const v = typeof e === 'string' ? e : e.value
+      return v === value
+    })
+    if (!item) return ''
+    return typeof item === 'string' ? '' : (item.note || '')
+  } catch {
+    return ''
+  }
+}
+
+async function copyEnumNote(fieldId, value) {
+  const note = getEnumNote(fieldId, value)
+  if (!note) return
+  try {
+    await navigator.clipboard.writeText(note)
+    showToast('备注已复制', 'success')
+  } catch {
+    // Fallback for environments without clipboard API
+    const ta = document.createElement('textarea')
+    ta.value = note
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    document.body.removeChild(ta)
+    showToast('备注已复制', 'success')
+  }
 }
 
 function formatSize(bytes) {

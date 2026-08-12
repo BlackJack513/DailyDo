@@ -177,7 +177,7 @@
               <p class="text-xs text-content-tertiary mt-0.5">
                 类型：{{ field.field_type === 'enum' ? '枚举' : '任意文本' }}
                 <span v-if="field.field_type === 'enum' && field.enum_values">
-                  · 值：{{ JSON.parse(field.enum_values || '[]').join(', ') }}
+                  · 值：{{ parseEnumValues(field.enum_values).map(v => v.note ? `${v.value}（${v.note}）` : v.value).join(', ') }}
                 </span>
               </p>
             </div>
@@ -216,12 +216,49 @@
               </select>
             </div>
             <div v-if="customFieldForm.field_type === 'enum'">
-              <label class="block text-xs text-content-tertiary mb-1">枚举值（每行一个）</label>
-              <textarea
-                v-model="customFieldForm.enumValuesText"
-                class="input-field h-24 resize-none"
-                placeholder="高&#10;中&#10;低"
-              ></textarea>
+              <label class="block text-xs text-content-tertiary mb-1">枚举值</label>
+              <div class="space-y-2 max-h-48 overflow-y-auto">
+                <div
+                  v-for="(ev, idx) in customFieldForm.enumValues"
+                  :key="idx"
+                  class="flex items-start gap-2"
+                >
+                  <div class="flex-1 min-w-0">
+                    <input
+                      v-model="ev.value"
+                      type="text"
+                      class="input-field text-sm py-1.5"
+                      placeholder="枚举值"
+                    />
+                  </div>
+                  <div class="flex-[2] min-w-0">
+                    <input
+                      v-model="ev.note"
+                      type="text"
+                      class="input-field text-sm py-1.5"
+                      placeholder="备注（可选）"
+                    />
+                  </div>
+                  <button
+                    @click="removeEnumValue(idx)"
+                    class="flex-shrink-0 text-red-400 hover:text-red-500 p-1.5 mt-0.5"
+                    title="删除"
+                  >
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <button
+                @click="addEnumValue"
+                class="mt-2 text-xs text-primary hover:text-primary-hover flex items-center gap-1"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                添加枚举值
+              </button>
             </div>
           </div>
           <div class="flex justify-end gap-3 mt-6">
@@ -285,8 +322,31 @@ const editingField = ref(null)
 const customFieldForm = ref({
   name: '',
   field_type: 'text',
-  enumValuesText: '',
+  enumValues: [],
 })
+
+function addEnumValue() {
+  customFieldForm.value.enumValues.push({ value: '', note: '' })
+}
+
+function removeEnumValue(idx) {
+  customFieldForm.value.enumValues.splice(idx, 1)
+}
+
+/** Parse enum_values JSON string into [{value, note}] array, backward compatible */
+function parseEnumValues(jsonStr) {
+  try {
+    const arr = JSON.parse(jsonStr || '[]')
+    return arr.map(item => {
+      if (typeof item === 'string') {
+        return { value: item, note: '' }
+      }
+      return { value: item.value || '', note: item.note || '' }
+    })
+  } catch {
+    return []
+  }
+}
 
 function showToast(msg) {
   toast.value = msg
@@ -342,9 +402,9 @@ function editCustomField(field) {
   customFieldForm.value = {
     name: field.name,
     field_type: field.field_type,
-    enumValuesText: field.field_type === 'enum'
-      ? JSON.parse(field.enum_values || '[]').join('\n')
-      : '',
+    enumValues: field.field_type === 'enum'
+      ? parseEnumValues(field.enum_values)
+      : [],
   }
   showCustomFieldModal.value = true
 }
@@ -352,7 +412,7 @@ function editCustomField(field) {
 function closeCustomFieldModal() {
   showCustomFieldModal.value = false
   editingField.value = null
-  customFieldForm.value = { name: '', field_type: 'text', enumValuesText: '' }
+  customFieldForm.value = { name: '', field_type: 'text', enumValues: [] }
 }
 
 async function saveCustomField() {
@@ -365,10 +425,9 @@ async function saveCustomField() {
     field_type: customFieldForm.value.field_type,
   }
   if (customFieldForm.value.field_type === 'enum') {
-    const values = customFieldForm.value.enumValuesText
-      .split('\n')
-      .map(v => v.trim())
-      .filter(v => v)
+    const values = customFieldForm.value.enumValues
+      .filter(v => v.value.trim())
+      .map(v => ({ value: v.value.trim(), note: (v.note || '').trim() }))
     fieldData.enum_values = JSON.stringify(values)
   } else {
     fieldData.enum_values = '[]'

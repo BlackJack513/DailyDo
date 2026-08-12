@@ -1,6 +1,6 @@
 <template>
   <div v-if="show" class="fixed inset-0 z-50 flex items-center justify-center">
-    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="$emit('close')"></div>
+    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
     <div class="relative w-full max-w-lg mx-4 bg-surface rounded-2xl shadow-2xl border border-border">
       <!-- Header -->
       <div class="flex items-center justify-between px-6 py-4 border-b border-border">
@@ -197,10 +197,10 @@
               >
                 <option value="">-- 请选择 --</option>
                 <option
-                  v-for="val in getEnumValues(field)"
-                  :key="val"
-                  :value="val"
-                >{{ val }}</option>
+                  v-for="ev in getEnumValues(field)"
+                  :key="ev.value"
+                  :value="ev.value"
+                >{{ ev.note ? `${ev.value}（${ev.note}）` : ev.value }}</option>
               </select>
               <input
                 v-else
@@ -516,7 +516,11 @@ function formatSize(bytes) {
 
 function getEnumValues(field) {
   try {
-    return JSON.parse(field.enum_values || '[]')
+    const arr = JSON.parse(field.enum_values || '[]')
+    return arr.map(item => {
+      if (typeof item === 'string') return { value: item, note: '' }
+      return { value: item.value || '', note: item.note || '' }
+    })
   } catch {
     return []
   }
