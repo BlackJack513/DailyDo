@@ -457,6 +457,13 @@ export const useAppStore = defineStore('app', () => {
           await db.saveTodoSteps(duplicate.id, newSteps)
         }
       }
+      // Copy custom field values to duplicate if it doesn't have any yet
+      if (todo.customFieldValues && todo.customFieldValues.length > 0) {
+        const existingCfv = await db.getCustomFieldValues(duplicate.id)
+        if (existingCfv.length === 0) {
+          await db.setCustomFieldValues(duplicate.id, todo.customFieldValues)
+        }
+      }
       return
     }
 
@@ -488,6 +495,11 @@ export const useAppStore = defineStore('app', () => {
         sort_order: s.sort_order || 0,
       }))
       await db.saveTodoSteps(created.id, newSteps)
+    }
+
+    // Copy custom field values
+    if (todo.customFieldValues && todo.customFieldValues.length > 0) {
+      await db.setCustomFieldValues(created.id, todo.customFieldValues)
     }
   }
 

@@ -216,10 +216,11 @@ async function loadData() {
   try {
     const todos = await db.getAllTodos()
     allRecurring.value = todos.filter(t => t.recurrence_type && t.recurrence_type !== 'none')
-    // Load tags and steps for each
+    // Load tags, steps, and custom field values for each
     for (const todo of allRecurring.value) {
       todo.tags = await db.getTodoTags(todo.id)
       todo.steps = await db.getStepsByTodoId(todo.id)
+      todo.customFieldValues = await db.getCustomFieldValues(todo.id)
     }
   } catch (e) {
     console.error('Failed to load recurring todos:', e)
@@ -256,6 +257,10 @@ async function handleSubmit(data) {
     if (data.steps && data.steps.length > 0) {
       await db.saveTodoSteps(created.id, data.steps)
     }
+    // Save custom field values
+    if (data.customFieldValues !== undefined) {
+      await db.setCustomFieldValues(created.id, data.customFieldValues || [])
+    }
   } else {
     // Update all non-deleted items in the group with new title/settings
     const groupId = editingItem.value.recurrence_group_id
@@ -279,6 +284,10 @@ async function handleSubmit(data) {
         if (data.steps !== undefined) {
           await db.saveTodoSteps(item.id, data.steps || [])
         }
+        // Save custom field values for each item in the group
+        if (data.customFieldValues !== undefined) {
+          await db.setCustomFieldValues(item.id, data.customFieldValues || [])
+        }
       }
     } else {
       // Single item (no group)
@@ -288,6 +297,9 @@ async function handleSubmit(data) {
       }
       if (data.steps !== undefined) {
         await db.saveTodoSteps(data.id, data.steps || [])
+      }
+      if (data.customFieldValues !== undefined) {
+        await db.setCustomFieldValues(data.id, data.customFieldValues || [])
       }
     }
   }
