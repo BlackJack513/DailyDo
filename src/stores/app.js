@@ -46,6 +46,7 @@ export const useAppStore = defineStore('app', () => {
 
   // Background image
   const backgroundImage = ref('')
+  const backgroundMode = ref('cover') // 'cover' or 'tile'
 
   // Settings loaded flag
   const settingsLoaded = ref(false)
@@ -165,6 +166,13 @@ export const useAppStore = defineStore('app', () => {
       if (bg) backgroundImage.value = JSON.parse(bg)
     } catch (e) {
       console.error('Failed to load background_image:', e)
+    }
+
+    try {
+      const bm = await db.getSetting('background_mode')
+      if (bm) backgroundMode.value = JSON.parse(bm)
+    } catch (e) {
+      console.error('Failed to load background_mode:', e)
     }
 
     await loadSidebarConfig()
@@ -774,14 +782,25 @@ export const useAppStore = defineStore('app', () => {
   }
 
   // ─── Background ─────────────────────────────────────
-  async function setBackgroundImage(path) {
+  async function setBackgroundImage(path, mode) {
     backgroundImage.value = path
     await db.setSetting('background_image', JSON.stringify(path))
+    if (mode) {
+      backgroundMode.value = mode
+      await db.setSetting('background_mode', JSON.stringify(mode))
+    }
+  }
+
+  async function setBackgroundMode(mode) {
+    backgroundMode.value = mode
+    await db.setSetting('background_mode', JSON.stringify(mode))
   }
 
   async function clearBackgroundImage() {
     backgroundImage.value = ''
+    backgroundMode.value = 'cover'
     await db.setSetting('background_image', '""')
+    await db.setSetting('background_mode', JSON.stringify('cover'))
   }
 
   // ─── Custom Fields ──────────────────────────────────
@@ -856,6 +875,7 @@ export const useAppStore = defineStore('app', () => {
     pendingQuickAdd,
     pendingEditTodo,
     backgroundImage,
+    backgroundMode,
     sidebarConfig,
     settingsLoaded,
     pendingTodos,
@@ -891,6 +911,7 @@ export const useAppStore = defineStore('app', () => {
     getCompletionTrend,
     getPriorityDistribution,
     setBackgroundImage,
+    setBackgroundMode,
     clearBackgroundImage,
     saveSidebarConfig,
     moveHistoricalTodoToToday,

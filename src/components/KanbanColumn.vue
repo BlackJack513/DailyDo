@@ -41,7 +41,7 @@
       :class="isDragOver ? 'bg-primary/5' : ''"
     >
       <div
-        v-for="todo in todos"
+        v-for="todo in visibleTodos"
         :key="todo.id"
         @mousedown="onMouseDown($event, todo)"
         @dblclick="onDoubleClick($event, todo)"
@@ -228,6 +228,18 @@
         </div>
       </div>
 
+      <!-- Show more card -->
+      <div
+        v-if="hasMore"
+        @click="$emit('showMore')"
+        class="flex items-center justify-center gap-2 p-3 rounded-xl border border-dashed border-border hover:border-primary/50 hover:bg-primary/5 transition-all cursor-pointer group"
+      >
+        <span class="text-sm text-content-tertiary group-hover:text-primary">还有 {{ remainingCount }} 项已完成</span>
+        <svg class="w-4 h-4 text-content-tertiary group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+      </div>
+
       <!-- Empty column hint -->
       <div v-if="todos.length === 0" class="flex flex-col items-center justify-center py-8 text-content-tertiary">
         <svg class="w-8 h-8 mb-2 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -308,9 +320,26 @@ const props = defineProps({
   title: { type: String, required: true },
   todos: { type: Array, required: true },
   statusColor: { type: String, default: '' },
+  maxVisible: { type: Number, default: null },
 })
 
-const emit = defineEmits(['drop', 'toggle', 'edit', 'delete', 'toggle-collapse', 'detail', 'history'])
+const emit = defineEmits(['drop', 'toggle', 'edit', 'delete', 'toggle-collapse', 'detail', 'history', 'showMore'])
+
+const visibleTodos = computed(() => {
+  if (props.maxVisible && props.todos.length > props.maxVisible) {
+    return props.todos.slice(0, props.maxVisible)
+  }
+  return props.todos
+})
+
+const hasMore = computed(() => {
+  return props.maxVisible && props.todos.length > props.maxVisible
+})
+
+const remainingCount = computed(() => {
+  if (!props.maxVisible) return 0
+  return Math.max(0, props.todos.length - props.maxVisible)
+})
 
 const isDragOver = ref(false)
 const collapsed = ref(false)

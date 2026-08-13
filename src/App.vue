@@ -7,7 +7,8 @@
       <!-- Background image layer -->
       <div
         v-if="store.backgroundImage"
-        class="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat"
+        class="absolute inset-0 z-0"
+        :class="store.backgroundMode === 'tile' ? 'bg-repeat' : 'bg-cover bg-center bg-no-repeat'"
         :style="{ backgroundImage: `url('${store.backgroundImage}')` }"
       ></div>
       <div
