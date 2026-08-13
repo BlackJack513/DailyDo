@@ -1084,4 +1084,25 @@ function getHistStatusLabel(status) {
   const map = { pending: '待处理', in_progress: '进行中', blocked: '等待中', done: '已完成' }
   return map[status] || '待处理'
 }
+
+// Helper functions for done modal
+function getPriorityColor(p) {
+  const map = { high: 'text-red-500', medium: 'text-amber-500', low: 'text-green-500' }
+  return map[p] || 'text-amber-500'
+}
+
+function getPriorityDot(p) {
+  const map = { high: 'bg-red-500', medium: 'bg-amber-500', low: 'bg-green-500' }
+  return map[p] || 'bg-amber-500'
+}
+
+function getPriorityLabel(p) {
+  const map = { high: '高优先级', medium: '中优先级', low: '低优先级' }
+  return map[p] || '中优先级'
+}
+
+function getRecurrenceLabel(type) {
+  const map = { daily: '每日', weekly: '每周', monthly: '每月', yearly: '每年', workday: '工作日' }
+  return map[type] || ''
+}
 </script>
