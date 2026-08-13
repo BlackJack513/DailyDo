@@ -1,9 +1,9 @@
 /* ═══════════════════════════════════════════════════════
    Theme System — CSS Custom Properties
-   15 themes: light, dark, forest(翠影), twilight(紫韵), blossom(粉黛),
+   16 themes: light, dark, forest(翠影), twilight(紫韵), blossom(粉黛),
               ink(墨染), dawn(晨曦), seafoam(海雾), bamboo(竹影),
               starry(星夜), coffee(咖啡时光), sunny(暖阳), ocean(海洋),
-              coral(珊瑚), mint(薄荷)
+              coral(珊瑚), mint(薄荷), claude(Claude风格)
    ═══════════════════════════════════════════════════════ */
 
 /* ── Light (默认浅色) ── */
@@ -319,6 +319,27 @@
   --color-primary-light: 200 248 230;
   /* Badge colors */
   --badge-bg: 20 184 130;
+  --badge-text: 255 255 255;
+}
+
+/* ── Claude Sand (Claude风格) ── */
+[data-theme='claude'] {
+  --color-body: 250 249 245;
+  --color-surface: 255 255 255;
+  --color-surface-2: 244 243 238;
+  --color-surface-3: 236 233 223;
+  --color-sidebar: 250 249 245;
+  --color-control: 215 210 200;
+  --color-surface-hover: 236 233 223;
+  --color-content: 25 25 25;
+  --color-content-sec: 80 80 80;
+  --color-muted: 155 150 140;
+  --color-divider: 236 233 223;
+  --color-primary: 193 95 60;
+  --color-primary-hover: 160 75 45;
+  --color-primary-light: 245 235 225;
+  /* Badge colors */
+  --badge-bg: 193 95 60;
   --badge-text: 255 255 255;
 }
 
