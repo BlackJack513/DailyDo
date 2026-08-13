@@ -16,6 +16,7 @@ export const useAppStore = defineStore('app', () => {
   // Calendar data
   const calendarCounts = ref({})
   const calendarDays = ref({}) // { 'YYYY-MM-DD': 'workday'|'rest' } — only custom overrides
+  const holidays = ref({}) // { 'YYYY-MM-DD': { name, holiday, ... } } — fetched from API
 
   // Trash
   const trashTodos = ref([])
@@ -671,14 +672,38 @@ export const useAppStore = defineStore('app', () => {
     calendarDays.value = map
   }
 
-  // Get effective day type: custom override or default (Mon-Fri=workday, Sat-Sun=rest)
+  // Get effective day type: custom override > holiday > default (Mon-Fri=workday, Sat-Sun=rest)
   function getDayType(dateStr) {
+    // 1. Custom override takes highest priority
     if (calendarDays.value[dateStr]) {
       return calendarDays.value[dateStr]
     }
+    // 2. Check holiday data
+    if (holidays.value[dateStr]) {
+      return 'rest'
+    }
+    // 3. Default: Mon-Fri = workday, Sat-Sun = rest
     const d = new Date(dateStr)
     const day = d.getDay() // 0=Sun, 6=Sat
     return day === 0 || day === 6 ? 'rest' : 'workday'
+  }
+
+  // Load holidays for the given year from API (only if not already stored)
+  async function loadHolidaysIfNeeded(year) {
+    try {
+      const count = await db.fetchHolidays(year)
+      // Load the holiday data into state for calendar display
+      const list = await db.getHolidaysForYear(year)
+      const map = {}
+      for (const h of list) {
+        map[h.date] = h
+      }
+      holidays.value = { ...holidays.value, ...map }
+      return count
+    } catch (e) {
+      console.warn('加载节假日数据失败:', e)
+      return 0
+    }
   }
 
   async function toggleDayType(dateStr) {
@@ -869,6 +894,7 @@ export const useAppStore = defineStore('app', () => {
     currentDate,
     calendarCounts,
     calendarDays,
+    holidays,
     overviewStats,
     trashTodos,
     incompleteTodos,
@@ -907,6 +933,7 @@ export const useAppStore = defineStore('app', () => {
     loadCalendarDays,
     getDayType,
     toggleDayType,
+    loadHolidaysIfNeeded,
     loadOverviewStats,
     getTagDistribution,
     getCompletionTrend,

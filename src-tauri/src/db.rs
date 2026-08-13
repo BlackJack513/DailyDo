@@ -52,6 +52,17 @@ pub fn init_db(conn: &Connection) -> Result<()> {
             updated_at TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS holidays (
+            date TEXT PRIMARY KEY,
+            holiday INTEGER NOT NULL DEFAULT 0,
+            name TEXT NOT NULL DEFAULT '',
+            wage INTEGER NOT NULL DEFAULT 0,
+            cn_lunar TEXT NOT NULL DEFAULT '',
+            extra_info TEXT NOT NULL DEFAULT '',
+            rest INTEGER NOT NULL DEFAULT 0,
+            year INTEGER NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS todo_steps (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             todo_id INTEGER NOT NULL,

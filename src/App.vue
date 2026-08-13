@@ -71,6 +71,9 @@ onMounted(async () => {
     console.error('Failed to load settings:', e)
   }
   store.applyTheme()
+  // Load holiday data for current year (non-blocking)
+  const currentYear = new Date().getFullYear()
+  store.loadHolidaysIfNeeded(currentYear)
   // Check for overdue/missing recurrences on startup
   store.checkOverdueRecurrences()
   // Check reminders immediately, then every 30 seconds

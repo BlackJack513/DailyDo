@@ -109,6 +109,8 @@ fn main() {
             commands::set_day_type,
             commands::remove_day_type,
             commands::is_workday,
+            commands::fetch_holidays,
+            commands::get_holidays_for_year,
             commands::get_pending_reminders,
             commands::toggle_recurrence_enabled,
             commands::delete_recurrence_group,

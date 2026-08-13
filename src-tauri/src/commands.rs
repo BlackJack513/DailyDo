@@ -73,6 +73,17 @@ pub struct CalendarDay {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct HolidayInfo {
+    pub date: String,
+    pub holiday: bool,
+    pub name: String,
+    pub wage: i32,
+    pub cn_lunar: String,
+    pub extra_info: String,
+    pub rest: i32,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TodoStep {
     pub id: Option<i64>,
     pub todo_id: Option<i64>,
@@ -997,14 +1008,114 @@ pub fn is_workday(state: State<AppState>, date: String) -> Result<bool, String> 
     match result {
         Ok(day_type) => Ok(day_type == "workday"),
         Err(rusqlite::Error::QueryReturnedNoRows) => {
-            // No override: use default (Mon-Fri = workday, Sat-Sun = rest)
-            let d = chrono::NaiveDate::parse_from_str(&date, "%Y-%m-%d")
-                .map_err(|e| e.to_string())?;
-            let weekday = d.weekday().num_days_from_monday();
-            Ok(weekday < 5) // 0=Mon .. 4=Fri = workday
+            // No override: check holidays table
+            let holiday_result = db.query_row(
+                "SELECT holiday FROM holidays WHERE date=?1",
+                params![date],
+                |row| row.get::<_, bool>(0),
+            );
+            match holiday_result {
+                Ok(true) => Ok(false), // It's a holiday → rest day
+                Ok(false) | Err(rusqlite::Error::QueryReturnedNoRows) => {
+                    // Not a holiday or not in table: use default (Mon-Fri = workday, Sat-Sun = rest)
+                    let d = chrono::NaiveDate::parse_from_str(&date, "%Y-%m-%d")
+                        .map_err(|e| e.to_string())?;
+                    let weekday = d.weekday().num_days_from_monday();
+                    Ok(weekday < 5) // 0=Mon .. 4=Fri = workday
+                }
+                Err(e) => Err(e.to_string()),
+            }
         }
         Err(e) => Err(e.to_string()),
     }
+}
+
+// ─── Holiday Commands ────────────────────────────────────────
+
+#[tauri::command]
+pub async fn fetch_holidays(state: State<'_, AppState>, year: i32) -> Result<i32, String> {
+    // Check if we already have data for this year
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let count: i32 = db
+            .query_row("SELECT COUNT(*) FROM holidays WHERE year=?1", params![year], |row| row.get(0))
+            .map_err(|e| e.to_string())?;
+        if count > 0 {
+            return Ok(count); // Already have data
+        }
+    }
+
+    // Fetch from API
+    let url = format!("https://holiday.ailcc.com/api/holiday/year/{}", year);
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let resp = client
+        .get(&url)
+        .send()
+        .map_err(|e| format!("网络请求失败: {}", e))?;
+    if !resp.status().is_success() {
+        return Err(format!("API返回错误状态: {}", resp.status()));
+    }
+    let body: serde_json::Value = resp
+        .json()
+        .map_err(|e| format!("解析响应失败: {}", e))?;
+
+    let holiday_obj = body
+        .get("holiday")
+        .ok_or_else(|| "响应中缺少holiday字段".to_string())?
+        .as_object()
+        .ok_or_else(|| "holiday字段不是对象".to_string())?;
+
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let mut count = 0i32;
+    for (mm_dd, info) in holiday_obj {
+        let date = format!("{}-{}", year, mm_dd);
+        let holiday = info.get("holiday").and_then(|v| v.as_bool()).unwrap_or(false);
+        let name = info.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let wage = info.get("wage").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+        let cn_lunar = info.get("cnLunar").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let extra_info = info.get("extra_info").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let rest = info.get("rest").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+
+        db.execute(
+            "INSERT OR REPLACE INTO holidays (date, holiday, name, wage, cn_lunar, extra_info, rest, year) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![date, holiday, name, wage, cn_lunar, extra_info, rest, year],
+        )
+        .map_err(|e| e.to_string())?;
+        count += 1;
+    }
+
+    Ok(count)
+}
+
+#[tauri::command]
+pub fn get_holidays_for_year(state: State<AppState>, year: i32) -> Result<Vec<HolidayInfo>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let prefix = format!("{}-", year);
+    let end_prefix = format!("{}-", year + 1);
+    let mut stmt = db
+        .prepare("SELECT date, holiday, name, wage, cn_lunar, extra_info, rest FROM holidays WHERE date >= ?1 AND date < ?2 ORDER BY date")
+        .map_err(|e| e.to_string())?;
+
+    let holidays = stmt
+        .query_map(params![prefix, end_prefix], |row| {
+            Ok(HolidayInfo {
+                date: row.get(0)?,
+                holiday: row.get(1)?,
+                name: row.get(2)?,
+                wage: row.get(3)?,
+                cn_lunar: row.get(4)?,
+                extra_info: row.get(5)?,
+                rest: row.get(6)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(holidays)
 }
 
 // ─── Reminder Commands ────────────────────────────────────────

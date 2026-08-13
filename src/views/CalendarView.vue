@@ -83,6 +83,15 @@
             {{ day.day }}
           </span>
 
+          <!-- Holiday name -->
+          <span
+            v-if="day.isCurrentMonth && getHolidayName(day.date)"
+            class="text-[9px] leading-none mt-0.5 truncate max-w-full px-1"
+            :class="getDayType(day.date) === 'rest' ? 'text-red-400' : 'text-content-tertiary'"
+          >
+            {{ getHolidayName(day.date) }}
+          </span>
+
           <!-- Day type icon (workday / rest) -->
           <div v-if="day.date && day.isCurrentMonth" class="mt-1 flex items-center justify-center">
             <!-- Workday icon: sun -->
@@ -138,6 +147,10 @@
         <div class="flex items-center gap-2">
           <div class="w-3 h-3 rounded-full bg-amber-500/20 border border-amber-500"></div>
           <span class="text-xs text-content-tertiary">休息日</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="w-3 h-3 rounded-full bg-red-500/20 border border-red-500"></div>
+          <span class="text-xs text-content-tertiary">法定节假日</span>
         </div>
         <div class="flex items-center gap-2">
           <div class="w-3 h-3 rounded-full bg-green-500/20 border border-green-500"></div>
@@ -294,16 +307,25 @@ function cellClasses(day) {
 
   // Completion-based classes
   let completionClass = ''
+  const isHoliday = day.isCurrentMonth && store.holidays[day.date]
   if (day.data) {
     if (day.data.completed === day.data.total) {
       completionClass = 'bg-green-500/10 border-green-500/30'
     } else if (day.data.completed > 0) {
       completionClass = 'bg-amber-500/10 border-amber-500/30'
     } else {
-      completionClass = dayType === 'rest' ? 'bg-amber-50 border-amber-200' : 'bg-blue-50 border-blue-200'
+      if (isHoliday) {
+        completionClass = 'bg-red-50 border-red-200'
+      } else {
+        completionClass = dayType === 'rest' ? 'bg-amber-50 border-amber-200' : 'bg-blue-50 border-blue-200'
+      }
     }
   } else {
-    completionClass = dayType === 'rest' ? 'bg-amber-50/50 border-amber-200/50' : 'bg-blue-50/50 border-blue-200/50'
+    if (isHoliday) {
+      completionClass = 'bg-red-50/50 border-red-200/50'
+    } else {
+      completionClass = dayType === 'rest' ? 'bg-amber-50/50 border-amber-200/50' : 'bg-blue-50/50 border-blue-200/50'
+    }
   }
 
   // Overdue: past date with incomplete todos → vivid red
@@ -372,9 +394,15 @@ const selectedDateType = computed(() => {
 
 onMounted(() => {
   store.loadCalendarCounts(currentYear.value, currentMonth.value)
+  store.loadHolidaysIfNeeded(currentYear.value)
 })
 
 watch([currentYear, currentMonth], () => {
   store.loadCalendarCounts(currentYear.value, currentMonth.value)
+  store.loadHolidaysIfNeeded(currentYear.value)
 })
+
+function getHolidayName(dateStr) {
+  return store.holidays[dateStr]?.name || ''
+}
 </script>

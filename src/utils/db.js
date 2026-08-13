@@ -125,6 +125,15 @@ export async function isWorkday(date) {
   return await invoke('is_workday', { date })
 }
 
+// Holidays
+export async function fetchHolidays(year) {
+  return await invoke('fetch_holidays', { year })
+}
+
+export async function getHolidaysForYear(year) {
+  return await invoke('get_holidays_for_year', { year })
+}
+
 // Reminders
 export async function getPendingReminders() {
   return await invoke('get_pending_reminders')
