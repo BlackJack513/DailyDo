@@ -145,7 +145,22 @@ export const useAppStore = defineStore('app', () => {
   // Dark themes that need the `dark` class for Tailwind
   const darkThemes = ['dark', 'ink', 'starry', 'indigo', 'aurora']
 
-  // ─── Theme ──────────────────────────────────────────
+  // Favorite themes — only these appear in the Sidebar dropdown
+  const favoriteThemes = ref(['light', 'dark', 'ocean', 'claude'])
+  const favoriteThemeIds = computed(() => new Set(favoriteThemes.value))
+  const isFavorite = (themeId) => favoriteThemeIds.value.has(themeId)
+
+  async function toggleFavorite(themeId) {
+    const idx = favoriteThemes.value.indexOf(themeId)
+    if (idx > -1) {
+      favoriteThemes.value = favoriteThemes.value.filter(id => id !== themeId)
+    } else {
+      favoriteThemes.value = [...favoriteThemes.value, themeId]
+    }
+    await db.setSetting('favorite_themes', JSON.stringify(favoriteThemes.value))
+  }
+
+  // ─── Theme ─────────────────────────────────────────
   function applyTheme() {
     const isDarkTheme = darkThemes.includes(theme.value)
     document.documentElement.setAttribute('data-theme', theme.value)
@@ -176,6 +191,18 @@ export const useAppStore = defineStore('app', () => {
       if (t) theme.value = t
     } catch (e) {
       console.error('Failed to load theme:', e)
+    }
+
+    try {
+      const ft = await db.getSetting('favorite_themes')
+      if (ft) {
+        const parsed = JSON.parse(ft)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          favoriteThemes.value = parsed
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load favorite_themes:', e)
     }
 
     try {
@@ -930,6 +957,9 @@ export const useAppStore = defineStore('app', () => {
     theme,
     themes,
     isDarkTheme,
+    favoriteThemes,
+    isFavorite,
+    toggleFavorite,
     tags,
     currentTodos,
     currentDate,

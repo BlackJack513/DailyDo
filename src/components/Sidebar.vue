@@ -108,7 +108,7 @@
           class="absolute bottom-full left-0 right-0 mb-1 bg-surface border border-border rounded-xl shadow-lg z-50 max-h-[300px] overflow-y-auto"
         >
           <button
-            v-for="t in store.themes"
+            v-for="t in store.themes.filter(t => store.isFavorite(t.id))"
             :key="t.id"
             @click="selectTheme(t.id)"
             class="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-surface-tertiary transition-colors"
