@@ -1,5 +1,26 @@
 <template>
-  <div class="h-screen flex flex-col bg-surface bg-body overflow-hidden">
+  <div
+    ref="rootEl"
+    class="h-screen flex flex-col bg-surface bg-body overflow-hidden"
+    @mouseenter="onMouseEnter"
+    @mouseleave="onMouseLeave"
+  >
+    <!-- Collapsed hint overlay -->
+    <div
+      v-if="isCollapsed"
+      class="absolute inset-0 z-40 flex items-center justify-center pointer-events-none"
+    >
+      <div
+        class="flex items-center gap-1 px-2 py-1 rounded bg-black/50 text-white text-[10px] font-medium"
+        :class="collapsedEdge === 'top' ? 'mt-1' : 'ml-1'"
+      >
+        <svg class="w-3 h-3" :class="collapsedEdge === 'top' ? 'rotate-180' : (collapsedEdge === 'left' ? '-rotate-90' : 'rotate-90')" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+        </svg>
+        DailyDo
+      </div>
+    </div>
+
     <!-- Compact Header -->
     <div class="flex items-center justify-between px-4 py-2.5 border-b border-border flex-shrink-0">
       <div class="flex items-center gap-2">
@@ -9,7 +30,7 @@
               stroke-linecap="round"
               stroke-linejoin="round"
               stroke-width="2"
-              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 002-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
             />
           </svg>
         </div>
@@ -231,7 +252,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useAppStore } from '../stores/app'
 import { appWindow } from '@tauri-apps/api/window'
 
@@ -242,6 +263,22 @@ const quickTitle = ref('')
 const quickPriority = ref('medium')
 const quickTagIds = ref([])
 const quickInput = ref(null)
+const rootEl = ref(null)
+
+// Edge auto-hide state
+const isCollapsed = ref(false)
+const collapsedEdge = ref(null)       // 'top' | 'left' | 'right'
+const expandedPos = ref(null)          // { x, y } saved before collapse
+const expandedSize = ref(null)         // { width, height } saved before collapse
+const isMouseOver = ref(false)
+const expandCooldown = ref(false)      // prevent rapid collapse after expand
+let positionTimer = null
+let cooldownTimer = null
+
+const MINI_WIDTH = 400
+const MINI_HEIGHT = 540
+const COLLAPSED_THICKNESS = 40         // collapsed strip thickness
+const EDGE_THRESHOLD = 5               // px from screen edge to trigger collapse
 
 const priorities = [
   { value: 'high', label: '高', activeClass: 'border-red-500 bg-red-50 text-red-500' },
@@ -250,9 +287,7 @@ const priorities = [
 ]
 
 const activeTodos = computed(() => store.currentTodos.filter(t => t.status === 'pending' || t.status === 'in_progress'))
-
 const inProgressTodos = computed(() => store.currentTodos.filter(t => t.status === 'in_progress'))
-
 const pendingTodos = computed(() => store.currentTodos.filter(t => t.status === 'pending'))
 
 function statusClass(todo) {
@@ -306,10 +341,10 @@ function expandToFull() {
   showAddForm.value = false
   store.isMiniMode = false
   appWindow.setAlwaysOnTop(false)
+  appWindow.setResizable(true)
   appWindow.setSize({ type: 'Physical', width: 1200, height: 800 })
   appWindow.center()
-  // After exiting mini mode, the main view will handle opening the add modal
-  // We set a flag to trigger it
+  stopPositionMonitor()
   store.pendingQuickAdd = {
     title: quickTitle.value.trim(),
     priority: quickPriority.value,
@@ -320,8 +355,10 @@ function expandToFull() {
 async function handleEdit(todo) {
   store.isMiniMode = false
   await appWindow.setAlwaysOnTop(false)
+  await appWindow.setResizable(true)
   await appWindow.setSize({ type: 'Physical', width: 1200, height: 800 })
   await appWindow.center()
+  stopPositionMonitor()
   store.pendingEditTodo = todo
 }
 
@@ -335,7 +372,132 @@ watch(showAddForm, async val => {
 async function exitMiniMode() {
   store.isMiniMode = false
   await appWindow.setAlwaysOnTop(false)
+  await appWindow.setResizable(true)
   await appWindow.setSize({ type: 'Physical', width: 1200, height: 800 })
   await appWindow.center()
+  stopPositionMonitor()
 }
+
+// ── Edge Auto-Hide ───────────────────────────────────────────────
+
+function onMouseEnter() {
+  isMouseOver.value = true
+  if (isCollapsed.value) {
+    doExpand()
+  }
+}
+
+function onMouseLeave() {
+  isMouseOver.value = false
+}
+
+function startPositionMonitor() {
+  stopPositionMonitor()
+  positionTimer = setInterval(() => checkEdgeAndCollapse(), 1000)
+  // Also check immediately after a short delay to catch initial position
+  setTimeout(() => checkEdgeAndCollapse(), 500)
+}
+
+function stopPositionMonitor() {
+  if (positionTimer) {
+    clearInterval(positionTimer)
+    positionTimer = null
+  }
+  if (cooldownTimer) {
+    clearTimeout(cooldownTimer)
+    cooldownTimer = null
+  }
+  expandCooldown.value = false
+}
+
+async function checkEdgeAndCollapse() {
+  // Don't collapse during cooldown after manual expand
+  if (expandCooldown.value) return
+  // Don't collapse if mouse is over the window
+  if (isMouseOver.value) return
+  // Don't collapse if already collapsed
+  if (isCollapsed.value) return
+
+  try {
+    const pos = await appWindow.outerPosition()
+    const size = await appWindow.innerSize()
+    const screenW = window.screen.availWidth
+    const screenH = window.screen.availHeight
+    const x = pos.x
+    const y = pos.y
+    const w = size.width
+    const h = size.height
+
+    let edge = null
+    if (y <= EDGE_THRESHOLD) {
+      edge = 'top'
+    } else if (x <= EDGE_THRESHOLD) {
+      edge = 'left'
+    } else if (x + w >= screenW - EDGE_THRESHOLD) {
+      edge = 'right'
+    }
+
+    if (edge) {
+      await doCollapse(edge, x, y, w, h)
+    }
+  } catch (e) {
+    // Window might be closing, ignore
+  }
+}
+
+async function doCollapse(edge, x, y, w, h) {
+  isCollapsed.value = true
+  collapsedEdge.value = edge
+  expandedPos.value = { x, y }
+  expandedSize.value = { width: w, height: h }
+
+  if (edge === 'top') {
+    // Collapse to a thin horizontal strip at the top
+    await appWindow.setSize({ type: 'Physical', width: w, height: COLLAPSED_THICKNESS })
+  } else if (edge === 'left') {
+    // Collapse to a thin vertical strip at the left
+    await appWindow.setSize({ type: 'Physical', width: COLLAPSED_THICKNESS, height: h })
+  } else if (edge === 'right') {
+    // Collapse to a thin vertical strip at the right, keep right edge aligned
+    const screenW = window.screen.availWidth
+    await appWindow.setPosition({ type: 'Physical', x: screenW - COLLAPSED_THICKNESS, y })
+    await appWindow.setSize({ type: 'Physical', width: COLLAPSED_THICKNESS, height: h })
+  }
+}
+
+async function doExpand() {
+  if (!isCollapsed.value) return
+  isCollapsed.value = false
+  collapsedEdge.value = null
+
+  const pos = expandedPos.value
+  const size = expandedSize.value
+
+  if (pos && size) {
+    // Restore to the position/size before collapse
+    await appWindow.setPosition({ type: 'Physical', x: pos.x, y: pos.y })
+    await appWindow.setSize({ type: 'Physical', width: size.width, height: size.height })
+  } else {
+    // Fallback: default mini mode size at bottom-right
+    const screenW = window.screen.availWidth
+    const screenH = window.screen.availHeight
+    await appWindow.setPosition({ type: 'Physical', x: screenW - MINI_WIDTH - 20, y: screenH - MINI_HEIGHT - 20 })
+    await appWindow.setSize({ type: 'Physical', width: MINI_WIDTH, height: MINI_HEIGHT })
+  }
+
+  // Set cooldown to prevent immediate re-collapse
+  expandCooldown.value = true
+  if (cooldownTimer) clearTimeout(cooldownTimer)
+  cooldownTimer = setTimeout(() => {
+    expandCooldown.value = false
+  }, 3000)
+}
+
+onMounted(() => {
+  startPositionMonitor()
+})
+
+onBeforeUnmount(() => {
+  stopPositionMonitor()
+})
 </script>

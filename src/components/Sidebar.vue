@@ -411,6 +411,7 @@ async function toggleMiniMode() {
     normalPos = await appWindow.outerPosition()
     store.isMiniMode = true
     await appWindow.setAlwaysOnTop(true)
+    await appWindow.setResizable(false)
     // Position at bottom-right corner
     const screenW = window.screen.availWidth
     const screenH = window.screen.availHeight
@@ -420,6 +421,7 @@ async function toggleMiniMode() {
     // Exit mini mode: restore
     store.isMiniMode = false
     await appWindow.setAlwaysOnTop(false)
+    await appWindow.setResizable(true)
     if (normalSize) {
       await appWindow.setSize(normalSize)
     } else {

@@ -591,6 +591,7 @@ async function toggleMiniMode() {
       normalPos = await appWindow.outerPosition()
       store.isMiniMode = true
       await appWindow.setAlwaysOnTop(true)
+      await appWindow.setResizable(false)
       const screenW = window.screen.availWidth
       const screenH = window.screen.availHeight
       await appWindow.setPosition({ type: 'Physical', x: screenW - 420, y: screenH - 560 })
@@ -598,6 +599,7 @@ async function toggleMiniMode() {
     } else {
       store.isMiniMode = false
       await appWindow.setAlwaysOnTop(false)
+      await appWindow.setResizable(true)
       if (normalSize) await appWindow.setSize(normalSize)
       if (normalPos) await appWindow.setPosition(normalPos)
     }
