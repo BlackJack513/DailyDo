@@ -385,7 +385,7 @@ async function uploadBackground() {
     } else {
       // Large image: show crop modal with data URL for preview
       cropOriginalPath = filePath
-      cropImageDataUrl = dataUrl
+      cropImageDataUrl.value = dataUrl
       cropImageSrc.value = dataUrl
       cropImageNatW.value = img.naturalWidth
       cropImageNatH.value = img.naturalHeight
