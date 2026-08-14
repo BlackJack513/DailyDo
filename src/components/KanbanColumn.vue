@@ -136,6 +136,23 @@
               </svg>
               附件
             </span>
+            <!-- Reminder -->
+            <span
+              v-if="todo.reminder_at"
+              class="text-xs flex items-center gap-0.5"
+              :class="isReminderOverdue(todo.reminder_at) ? 'text-red-500' : 'text-primary'"
+              :title="'提醒: ' + formatReminder(todo.reminder_at)"
+            >
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                />
+              </svg>
+              {{ formatReminder(todo.reminder_at) }}
+            </span>
           </div>
 
           <!-- Inline Steps (only for todos with steps) -->
@@ -612,6 +629,27 @@ function getStepBarColor(todo) {
   if (done === todo.steps.length) return 'bg-green-500'
   if (done > 0) return 'bg-primary'
   return 'bg-control'
+}
+
+function formatReminder(reminderAt) {
+  if (!reminderAt) return ''
+  const d = new Date(reminderAt.replace(' ', 'T'))
+  if (isNaN(d.getTime())) return ''
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const target = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  if (target.getTime() === today.getTime()) {
+    return `${hh}:${mm}`
+  }
+  return `${d.getMonth() + 1}/${d.getDate()} ${hh}:${mm}`
+}
+
+function isReminderOverdue(reminderAt) {
+  if (!reminderAt) return false
+  const d = new Date(reminderAt.replace(' ', 'T'))
+  return isNaN(d.getTime()) ? false : d.getTime() < Date.now()
 }
 
 async function onStepClick(step) {
