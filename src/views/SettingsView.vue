@@ -276,7 +276,7 @@ import { ref, onMounted, computed, nextTick } from 'vue'
 import { useAppStore } from '../stores/app'
 import { exportToJSON, importFromJSON, exportToMarkdown, exportToExcel } from '../utils/export'
 import { open } from '@tauri-apps/api/dialog'
-import { writeBinaryFile } from '@tauri-apps/api/fs'
+import { writeBinaryFile, readBinaryFile } from '@tauri-apps/api/fs'
 import { join } from '@tauri-apps/api/path'
 import { appWindow } from '@tauri-apps/api/window'
 
@@ -354,25 +354,39 @@ async function uploadBackground() {
     if (!selected) return
     const filePath = typeof selected === 'string' ? selected : selected[0]
 
+    // Read file as binary and convert to data URL
+    const fileData = await readBinaryFile(filePath)
+    const base64 = arrayBufferToBase64(fileData)
+    const fileExt = filePath.split('.').pop().toLowerCase()
+    const mimeType = fileExt === 'jpg' || fileExt === 'jpeg' ? 'image/jpeg' :
+                     fileExt === 'png' ? 'image/png' :
+                     fileExt === 'webp' ? 'image/webp' :
+                     fileExt === 'bmp' ? 'image/bmp' : 'image/png'
+    const dataUrl = `data:${mimeType};base64,${base64}`
+
     // Load image to check dimensions
     const img = new Image()
-    img.src = filePath
+    img.src = dataUrl
     await new Promise((resolve, reject) => {
       img.onload = resolve
-      img.onerror = reject
+      img.onerror = () => reject(new Error('图片加载失败，请检查文件格式'))
     })
 
     const SMALL_THRESHOLD = 512
     const longestSide = Math.max(img.naturalWidth, img.naturalHeight)
 
     if (longestSide <= SMALL_THRESHOLD) {
-      // Small image: auto-set to tile mode
-      await store.setBackgroundImage(filePath, 'tile')
+      // Small image: save to app data dir and set to tile mode
+      const dataDir = await store.getDataDir()
+      const bgPath = await join(dataDir, 'background.png')
+      await writeBinaryFile(bgPath, fileData)
+      await store.setBackgroundImage(bgPath, 'tile')
       showToast('小图片已自动设置为平铺模式')
     } else {
-      // Large image: show crop modal
+      // Large image: show crop modal with data URL for preview
       cropOriginalPath = filePath
-      cropImageSrc.value = filePath
+      cropImageDataUrl = dataUrl
+      cropImageSrc.value = dataUrl
       cropImageNatW.value = img.naturalWidth
       cropImageNatH.value = img.naturalHeight
       showCropModal.value = true
@@ -384,13 +398,25 @@ async function uploadBackground() {
       initCropPosition()
     }
   } catch (e) {
-    showToast('设置背景失败: ' + e)
+    const msg = e instanceof Error ? e.message : String(e)
+    showToast('设置背景失败: ' + msg)
   }
+}
+
+function arrayBufferToBase64(buffer) {
+  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer)
+  let binary = ''
+  const len = bytes.byteLength
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i])
+  }
+  return btoa(binary)
 }
 
 // ─── Crop Modal State ─────────────────────────────
 const showCropModal = ref(false)
 const cropImageSrc = ref('')
+const cropImageDataUrl = ref('')
 const cropImageNatW = ref(0)
 const cropImageNatH = ref(0)
 const cropOffsetX = ref(0)
@@ -460,6 +486,7 @@ function onCropDragEnd() {
 function cancelCrop() {
   showCropModal.value = false
   cropImageSrc.value = ''
+  cropImageDataUrl.value = ''
   cropOriginalPath = ''
 }
 
@@ -505,10 +532,10 @@ async function confirmCrop() {
     const ctx = canvas.getContext('2d')
 
     const img = new Image()
-    img.src = cropOriginalPath
+    img.src = cropImageDataUrl.value
     await new Promise((resolve, reject) => {
       img.onload = resolve
-      img.onerror = reject
+      img.onerror = () => reject(new Error('图片加载失败'))
     })
 
     ctx.drawImage(img, srcLeft, srcTop, srcW, srcH, 0, 0, canvas.width, canvas.height)
@@ -526,10 +553,12 @@ async function confirmCrop() {
     await store.setBackgroundImage(bgPath, 'cover')
     showCropModal.value = false
     cropImageSrc.value = ''
+    cropImageDataUrl.value = ''
     cropOriginalPath = ''
     showToast('背景图片已裁剪并更新')
   } catch (e) {
-    showToast('裁剪失败: ' + e)
+    const msg = e instanceof Error ? e.message : String(e)
+    showToast('裁剪失败: ' + msg)
   }
 }
 
