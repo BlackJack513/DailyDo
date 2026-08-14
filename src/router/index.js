@@ -13,6 +13,7 @@ const routes = [
   { path: '/templates', name: 'templates', component: () => import('../views/TemplatesView.vue') },
   { path: '/attachments', name: 'attachments', component: () => import('../views/AttachmentsView.vue') },
   { path: '/payday', name: 'payday', component: () => import('../views/PaydayView.vue') },
+  { path: '/salary-timer', name: 'salary-timer', component: () => import('../views/SalaryTimerView.vue') },
   { path: '/trash', name: 'trash', component: () => import('../views/TrashView.vue') },
   { path: '/custom-fields', name: 'custom-fields', component: () => import('../views/CustomFieldsView.vue') },
   { path: '/settings', name: 'settings', component: () => import('../views/SettingsView.vue') },

@@ -75,12 +75,19 @@ export const useAppStore = defineStore('app', () => {
       ],
     },
     {
+      id: 'time_tools',
+      label: '时间工具',
+      items: [
+        { id: 'payday', visible: true },
+        { id: 'salaryTimer', visible: true },
+      ],
+    },
+    {
       id: 'system',
       label: '系统管理',
       items: [
         { id: 'tags', visible: true },
         { id: 'attachments', visible: true },
-        { id: 'payday', visible: false },
         { id: 'customFields', visible: true },
         { id: 'trash', visible: true },
         { id: 'settings', visible: true },
@@ -223,6 +230,32 @@ export const useAppStore = defineStore('app', () => {
                     const settingsIdx = g.items.findIndex(i => i.id === 'settings')
                     const insertIdx = trashIdx >= 0 ? trashIdx : settingsIdx >= 0 ? settingsIdx : g.items.length
                     g.items.splice(insertIdx, 0, { id: 'customFields', visible: true })
+                    migrated = true
+                  }
+                  // Migrate: move 'payday' from system to time_tools group
+                  const paydayIdx = g.items.findIndex(i => i.id === 'payday')
+                  if (paydayIdx >= 0) {
+                    const [paydayItem] = g.items.splice(paydayIdx, 1)
+                    migrated = true
+                    // Find or create time_tools group
+                    let timeGroup = parsed.find(g2 => g2.id === 'time_tools')
+                    if (!timeGroup) {
+                      // Insert before 'system' group
+                      const sysIdx = parsed.findIndex(g2 => g2.id === 'system')
+                      timeGroup = { id: 'time_tools', label: '时间工具', items: [] }
+                      parsed.splice(sysIdx >= 0 ? sysIdx : parsed.length, 0, timeGroup)
+                    }
+                    if (!timeGroup.items.find(i => i.id === 'payday')) {
+                      timeGroup.items.push({ ...paydayItem, visible: true })
+                    }
+                  }
+                }
+              }
+              // Migrate: ensure 'salaryTimer' exists in time_tools group
+              for (const g of parsed) {
+                if (g.id === 'time_tools') {
+                  if (!g.items.find(i => i.id === 'salaryTimer')) {
+                    g.items.push({ id: 'salaryTimer', visible: true })
                     migrated = true
                   }
                 }
