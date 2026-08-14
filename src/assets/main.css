@@ -1,9 +1,12 @@
 /* ═══════════════════════════════════════════════════════
    Theme System — CSS Custom Properties
-   16 themes: light, dark, forest(翠影), twilight(紫韵), blossom(粉黛),
+   24 themes: light, dark, forest(翠影), twilight(紫韵), blossom(粉黛),
               ink(墨染), dawn(晨曦), seafoam(海雾), bamboo(竹影),
               starry(星夜), coffee(咖啡时光), sunny(暖阳), ocean(海洋),
-              coral(珊瑚), mint(薄荷), claude(Claude风格)
+              coral(珊瑚), mint(薄荷), claude(Claude风格),
+              rainblue(天青), moonwhite(月白), cinnabar(朱砂),
+              indigo(黛蓝), mist(暮霭), frost(霜降), aurora(极光),
+              monsoon(雨季)
    ═══════════════════════════════════════════════════════ */
 
 /* ── Light (默认浅色) ── */
@@ -340,6 +343,166 @@
   --color-primary-light: 245 235 225;
   /* Badge colors */
   --badge-bg: 193 95 60;
+  --badge-text: 255 255 255;
+}
+
+/* ── Rain Blue (天青) ── */
+[data-theme='rainblue'] {
+  --color-body: 232 240 242;
+  --color-surface: 255 255 255;
+  --color-surface-2: 220 232 236;
+  --color-surface-3: 200 218 224;
+  --color-sidebar: 225 236 240;
+  --color-control: 180 205 212;
+  --color-surface-hover: 210 225 230;
+  --color-content: 30 75 80;
+  --color-content-sec: 55 100 105;
+  --color-muted: 120 155 160;
+  --color-divider: 200 218 224;
+  --color-primary: 55 130 135;
+  --color-primary-hover: 40 110 115;
+  --color-primary-light: 210 232 234;
+  --badge-bg: 55 130 135;
+  --badge-text: 255 255 255;
+}
+
+/* ── Moon White (月白) ─ */
+[data-theme='moonwhite'] {
+  --color-body: 245 247 250;
+  --color-surface: 255 255 255;
+  --color-surface-2: 232 236 242;
+  --color-surface-3: 215 222 232;
+  --color-sidebar: 240 243 248;
+  --color-control: 195 205 218;
+  --color-surface-hover: 222 228 238;
+  --color-content: 45 58 75;
+  --color-content-sec: 75 90 110;
+  --color-muted: 140 152 168;
+  --color-divider: 215 222 232;
+  --color-primary: 80 105 135;
+  --color-primary-hover: 60 85 115;
+  --color-primary-light: 218 226 238;
+  --badge-bg: 80 105 135;
+  --badge-text: 255 255 255;
+}
+
+/* ── Cinnabar (朱砂) ── */
+[data-theme='cinnabar'] {
+  --color-body: 245 240 232;
+  --color-surface: 255 252 245;
+  --color-surface-2: 235 228 215;
+  --color-surface-3: 220 210 195;
+  --color-sidebar: 242 236 225;
+  --color-control: 200 190 175;
+  --color-surface-hover: 228 218 202;
+  --color-content: 45 30 18;
+  --color-content-sec: 80 55 35;
+  --color-muted: 150 135 115;
+  --color-divider: 220 210 195;
+  --color-primary: 175 45 35;
+  --color-primary-hover: 150 35 28;
+  --color-primary-light: 248 228 225;
+  --badge-bg: 175 45 35;
+  --badge-text: 255 255 255;
+}
+
+/* ── Indigo (黛蓝) ── */
+[data-theme='indigo'] {
+  --color-body: 22 28 48;
+  --color-surface: 32 40 65;
+  --color-surface-2: 45 55 82;
+  --color-surface-3: 58 70 100;
+  --color-sidebar: 26 33 55;
+  --color-control: 65 78 110;
+  --color-surface-hover: 50 62 92;
+  --color-content: 225 230 238;
+  --color-content-sec: 185 195 212;
+  --color-muted: 130 142 165;
+  --color-divider: 50 62 92;
+  --color-primary: 130 150 200;
+  --color-primary-hover: 105 128 178;
+  --color-primary-light: 45 58 95;
+  --badge-bg: 130 150 200;
+  --badge-text: 22 28 48;
+}
+
+/* ── Twilight Mist (暮霭) ── */
+[data-theme='mist'] {
+  --color-body: 235 230 238;
+  --color-surface: 250 247 252;
+  --color-surface-2: 222 215 228;
+  --color-surface-3: 208 198 215;
+  --color-sidebar: 230 225 235;
+  --color-control: 192 182 200;
+  --color-surface-hover: 215 206 222;
+  --color-content: 50 42 58;
+  --color-content-sec: 82 72 92;
+  --color-muted: 148 138 158;
+  --color-divider: 208 198 215;
+  --color-primary: 215 130 75;
+  --color-primary-hover: 195 112 58;
+  --color-primary-light: 248 232 220;
+  --badge-bg: 215 130 75;
+  --badge-text: 255 255 255;
+}
+
+/* ── Frost (霜降) ─ */
+[data-theme='frost'] {
+  --color-body: 240 244 248;
+  --color-surface: 255 255 255;
+  --color-surface-2: 225 232 240;
+  --color-surface-3: 208 218 230;
+  --color-sidebar: 235 240 246;
+  --color-control: 190 202 216;
+  --color-surface-hover: 215 224 235;
+  --color-content: 35 48 65;
+  --color-content-sec: 65 80 100;
+  --color-muted: 140 155 172;
+  --color-divider: 208 218 230;
+  --color-primary: 70 130 195;
+  --color-primary-hover: 52 110 175;
+  --color-primary-light: 215 230 248;
+  --badge-bg: 70 130 195;
+  --badge-text: 255 255 255;
+}
+
+/* ── Aurora (极光) ── */
+[data-theme='aurora'] {
+  --color-body: 16 16 26;
+  --color-surface: 26 26 40;
+  --color-surface-2: 40 40 58;
+  --color-surface-3: 55 55 78;
+  --color-sidebar: 20 20 32;
+  --color-control: 65 65 90;
+  --color-surface-hover: 48 48 68;
+  --color-content: 210 210 222;
+  --color-content-sec: 170 170 188;
+  --color-muted: 115 115 138;
+  --color-divider: 48 48 68;
+  --color-primary: 90 200 120;
+  --color-primary-hover: 70 178 100;
+  --color-primary-light: 35 55 42;
+  --badge-bg: 90 200 120;
+  --badge-text: 16 16 26;
+}
+
+/* ── Monsoon (雨季) ── */
+[data-theme='monsoon'] {
+  --color-body: 225 235 225;
+  --color-surface: 248 252 248;
+  --color-surface-2: 210 222 210;
+  --color-surface-3: 192 208 192;
+  --color-sidebar: 218 230 218;
+  --color-control: 172 190 172;
+  --color-surface-hover: 200 215 200;
+  --color-content: 32 55 45;
+  --color-content-sec: 55 82 68;
+  --color-muted: 120 148 128;
+  --color-divider: 192 208 192;
+  --color-primary: 58 110 75;
+  --color-primary-hover: 42 90 60;
+  --color-primary-light: 210 230 215;
+  --badge-bg: 58 110 75;
   --badge-text: 255 255 255;
 }
 

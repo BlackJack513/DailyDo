@@ -132,10 +132,18 @@ export const useAppStore = defineStore('app', () => {
     { id: 'coral', name: '珊瑚', color: '#FB7150' },
     { id: 'mint', name: '薄荷', color: '#14B882' },
     { id: 'claude', name: 'Claude', color: '#C15F3C' },
+    { id: 'rainblue', name: '天青', color: '#378287' },
+    { id: 'moonwhite', name: '月白', color: '#506987' },
+    { id: 'cinnabar', name: '朱砂', color: '#AF2D23' },
+    { id: 'indigo', name: '黛蓝', color: '#8296C8' },
+    { id: 'mist', name: '暮霭', color: '#D7824B' },
+    { id: 'frost', name: '霜降', color: '#4682C3' },
+    { id: 'aurora', name: '极光', color: '#5AC878' },
+    { id: 'monsoon', name: '雨季', color: '#3A6E4B' },
   ]
 
   // Dark themes that need the `dark` class for Tailwind
-  const darkThemes = ['dark', 'ink', 'starry']
+  const darkThemes = ['dark', 'ink', 'starry', 'indigo', 'aurora']
 
   // ─── Theme ──────────────────────────────────────────
   function applyTheme() {

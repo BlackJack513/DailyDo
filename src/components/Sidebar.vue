@@ -105,7 +105,7 @@
         </button>
         <div
           v-if="showThemeDropdown"
-          class="absolute bottom-full left-0 right-0 mb-1 bg-surface border border-border rounded-xl shadow-lg overflow-hidden z-50"
+          class="absolute bottom-full left-0 right-0 mb-1 bg-surface border border-border rounded-xl shadow-lg z-50 max-h-[300px] overflow-y-auto"
         >
           <button
             v-for="t in store.themes"
