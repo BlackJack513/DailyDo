@@ -1,3 +1,16 @@
+<!--
+  TemplatesView.vue — 待办模板管理页面
+
+  功能：
+  1. 展示所有模板卡片（含优先级、标签、重复类型、锁定字段、步骤、自定义字段）
+  2. 创建/编辑模板（支持设置自定义字段默认值 + 锁定自定义字段）
+  3. 删除模板
+
+  重构说明：
+  - 使用 templateService 封装所有模板数据操作（CRUD + 关联数据加载）
+  - 使用 helpers.js 共享函数消除重复代码（priorityClass、recurrenceLabel 等）
+  - 新增自定义字段集成：表单中可设置各自定义字段的默认值，并可选择锁定
+-->
 <template>
   <div class="flex-1 flex flex-col h-full bg-surface-secondary bg-body">
     <!-- Header -->
@@ -80,7 +93,7 @@
             </div>
           </div>
 
-          <!-- Meta info -->
+          <!-- Meta info: priority + recurrence -->
           <div class="flex flex-wrap gap-2 mb-3">
             <span class="text-xs px-2 py-0.5 rounded-full font-medium" :class="priorityClass(tpl.priority)">
               {{ priorityLabel(tpl.priority) }}
@@ -94,9 +107,9 @@
           </div>
 
           <!-- Tags -->
-          <div v-if="getTemplateTagNames(tpl).length > 0" class="flex flex-wrap gap-1.5 mb-3">
+          <div v-if="tpl.tagNames && tpl.tagNames.length > 0" class="flex flex-wrap gap-1.5 mb-3">
             <span
-              v-for="tn in getTemplateTagNames(tpl)"
+              v-for="tn in tpl.tagNames"
               :key="tn"
               class="text-xs px-2 py-0.5 rounded-full bg-surface-2 text-content-secondary text-muted"
             >
@@ -104,10 +117,10 @@
             </span>
           </div>
 
-          <!-- Locked fields indicator -->
-          <div v-if="getLockedFields(tpl).length > 0" class="flex flex-wrap gap-1.5 mb-3">
+          <!-- Locked fields indicator (使用 getLockedFieldLabels 支持自定义字段名展开) -->
+          <div v-if="getLockedLabels(tpl).length > 0" class="flex flex-wrap gap-1.5 mb-3">
             <span
-              v-for="lf in getLockedFields(tpl)"
+              v-for="lf in getLockedLabels(tpl)"
               :key="lf"
               class="text-xs px-2 py-0.5 rounded-full bg-purple-50 bg-purple-50/20 text-purple-600 text-purple-400 font-medium"
             >
@@ -115,15 +128,26 @@
             </span>
           </div>
 
+          <!-- Custom field values preview (显示模板中设置的自定义字段默认值) -->
+          <div v-if="getCustomFieldPreview(tpl).length > 0" class="flex flex-wrap gap-2 mb-3">
+            <span
+              v-for="cfv in getCustomFieldPreview(tpl)"
+              :key="cfv.fieldId"
+              class="text-xs px-2 py-0.5 rounded-full bg-cyan-50 bg-cyan-50/20 text-cyan-600 text-cyan-500 font-medium"
+            >
+              {{ cfv.fieldName }}: {{ cfv.displayValue }}
+            </span>
+          </div>
+
           <!-- Steps -->
           <div
-            v-if="templateSteps[tpl.id] && templateSteps[tpl.id].length > 0"
+            v-if="tpl.steps && tpl.steps.length > 0"
             class="mt-2 pt-3 border-t border-border"
           >
-            <p class="text-xs text-content-tertiary mb-1.5">{{ templateSteps[tpl.id].length }} 个步骤</p>
+            <p class="text-xs text-content-tertiary mb-1.5">{{ tpl.steps.length }} 个步骤</p>
             <div class="space-y-1">
               <div
-                v-for="(step, idx) in templateSteps[tpl.id].slice(0, 3)"
+                v-for="(step, idx) in tpl.steps.slice(0, 3)"
                 :key="step.id || idx"
                 class="flex items-center gap-2 text-sm text-content-secondary text-muted"
               >
@@ -134,8 +158,8 @@
                 </span>
                 <span class="truncate">{{ step.title }}</span>
               </div>
-              <p v-if="templateSteps[tpl.id].length > 3" class="text-xs text-content-tertiary pl-6">
-                +{{ templateSteps[tpl.id].length - 3 }} 更多...
+              <p v-if="tpl.steps.length > 3" class="text-xs text-content-tertiary pl-6">
+                +{{ tpl.steps.length - 3 }} 更多...
               </p>
             </div>
           </div>
@@ -184,12 +208,12 @@
             />
           </div>
 
-          <!-- Priority -->
+          <!-- Priority (使用 PRIORITIES 常量，不再本地维护) -->
           <div>
             <label class="block text-sm font-medium text-content-secondary text-muted mb-1.5">优先级</label>
             <div class="flex gap-2">
               <button
-                v-for="p in priorities"
+                v-for="p in PRIORITIES"
                 :key="p.value"
                 @click="tplForm.priority = p.value"
                 class="flex-1 py-2 rounded-lg text-sm font-medium border transition-colors"
@@ -225,12 +249,12 @@
             </div>
           </div>
 
-          <!-- Recurrence -->
+          <!-- Recurrence (使用 RECURRENCE_OPTIONS 常量) -->
           <div>
             <label class="block text-sm font-medium text-content-secondary text-muted mb-1.5">重复</label>
             <div class="flex gap-2 flex-wrap">
               <button
-                v-for="r in recurrenceOptions"
+                v-for="r in RECURRENCE_OPTIONS"
                 :key="r.value"
                 @click="tplForm.recurrence_type = r.value"
                 class="px-3 py-2 rounded-lg text-sm font-medium border transition-colors"
@@ -245,68 +269,77 @@
             </div>
           </div>
 
-          <!-- Locked Fields -->
+          <!-- Locked Fields (标准字段 + 自定义字段均可锁定) -->
           <div>
             <label class="block text-sm font-medium text-content-secondary text-muted mb-1.5">
               锁定字段
               <span class="text-xs font-normal text-content-tertiary ml-1">（使用模板时这些字段不可修改）</span>
             </label>
             <div class="flex flex-wrap gap-3">
+              <!-- 标准字段锁定 -->
               <label
+                v-for="lf in standardLockableFields"
+                :key="lf.value"
                 class="flex items-center gap-1.5 text-sm text-content-secondary text-muted cursor-pointer select-none"
               >
                 <input
                   type="checkbox"
-                  value="title"
+                  :value="lf.value"
                   v-model="tplForm.lockedFields"
                   class="rounded border-border text-primary focus:ring-primary"
                 />
-                标题
+                {{ lf.label }}
               </label>
+              <!-- 自定义字段锁定（每个自定义字段独立锁定，标识为 "cf_{id}"） -->
               <label
+                v-for="cf in store.customFields"
+                :key="'lock_cf_' + cf.id"
                 class="flex items-center gap-1.5 text-sm text-content-secondary text-muted cursor-pointer select-none"
               >
                 <input
                   type="checkbox"
-                  value="priority"
+                  :value="'cf_' + cf.id"
                   v-model="tplForm.lockedFields"
                   class="rounded border-border text-primary focus:ring-primary"
                 />
-                优先级
+                {{ cf.name }}
               </label>
-              <label
-                class="flex items-center gap-1.5 text-sm text-content-secondary text-muted cursor-pointer select-none"
-              >
+            </div>
+          </div>
+
+          <!-- Custom Fields Default Values (新增：设置各自定义字段的默认值) -->
+          <div v-if="store.customFields.length > 0">
+            <label class="block text-sm font-medium text-content-secondary text-muted mb-1.5">
+              自定义字段默认值
+              <span class="text-xs font-normal text-content-tertiary ml-1">（使用模板时自动填入）</span>
+            </label>
+            <div class="space-y-3">
+              <div v-for="cf in store.customFields" :key="'cf_' + cf.id">
+                <label class="block text-xs text-content-tertiary mb-1">{{ cf.name }}</label>
+                <!-- enum 类型：下拉选择 -->
+                <select
+                  v-if="cf.field_type === 'enum'"
+                  v-model="tplForm.customFieldValues[cf.id]"
+                  class="w-full px-3 py-2 rounded-lg border border-border bg-surface-secondary text-sm text-content outline-none focus:border-primary"
+                >
+                  <option value="">不设置</option>
+                  <option
+                    v-for="opt in getEnumOptions(cf)"
+                    :key="opt.value"
+                    :value="opt.value"
+                    :title="opt.note"
+                  >
+                    {{ opt.value }}<span v-if="opt.note"> ({{ opt.note }})</span>
+                  </option>
+                </select>
+                <!-- text 类型：文本输入 -->
                 <input
-                  type="checkbox"
-                  value="tags"
-                  v-model="tplForm.lockedFields"
-                  class="rounded border-border text-primary focus:ring-primary"
+                  v-else
+                  v-model="tplForm.customFieldValues[cf.id]"
+                  class="input-field text-sm"
+                  :placeholder="'输入' + cf.name + '默认值...'"
                 />
-                标签
-              </label>
-              <label
-                class="flex items-center gap-1.5 text-sm text-content-secondary text-muted cursor-pointer select-none"
-              >
-                <input
-                  type="checkbox"
-                  value="recurrence"
-                  v-model="tplForm.lockedFields"
-                  class="rounded border-border text-primary focus:ring-primary"
-                />
-                重复
-              </label>
-              <label
-                class="flex items-center gap-1.5 text-sm text-content-secondary text-muted cursor-pointer select-none"
-              >
-                <input
-                  type="checkbox"
-                  value="steps"
-                  v-model="tplForm.lockedFields"
-                  class="rounded border-border text-primary focus:ring-primary"
-                />
-                步骤
-              </label>
+              </div>
             </div>
           </div>
 
@@ -385,14 +418,35 @@
 </template>
 
 <script setup>
+/**
+ * TemplatesView 脚本部分
+ *
+ * 重构要点：
+ * 1. 使用 templateService 封装模板 CRUD 和关联数据加载
+ * 2. 使用 helpers.js 共享函数替代本地重复定义
+ * 3. 新增自定义字段表单支持（默认值 + 锁定）
+ * 4. 表单数据模型增加 customFieldValues 字段
+ */
 import { ref, reactive, onMounted, nextTick } from 'vue'
 import { useAppStore } from '../stores/app'
-import * as db from '../utils/db'
+import { templateService } from '../services/templateService'
+import {
+  PRIORITIES,
+  RECURRENCE_OPTIONS,
+  priorityClass,
+  priorityLabel,
+  recurrenceLabel,
+  safeJsonParseArray,
+  getLockedFieldLabels,
+  parseEnumValues,
+} from '../utils/helpers'
 
 const store = useAppStore()
 
+// ─── 状态 ──────────────────────────────────────────────────────
+
+/** 模板列表（通过 templateService 加载，含关联数据） */
 const templates = ref([])
-const templateSteps = ref({})
 const loading = ref(true)
 const showModal = ref(false)
 const editingTemplate = ref(null)
@@ -400,6 +454,23 @@ const deleteTarget = ref(null)
 const nameInput = ref(null)
 const formError = ref('')
 
+/**
+ * 标准可锁定字段列表 —— 用于表单中渲染锁定字段的 checkbox。
+ * 自定义字段的 checkbox 在模板中通过 store.customFields 动态渲染。
+ */
+const standardLockableFields = [
+  { value: 'title', label: '标题' },
+  { value: 'priority', label: '优先级' },
+  { value: 'tags', label: '标签' },
+  { value: 'recurrence', label: '重复' },
+  { value: 'steps', label: '步骤' },
+]
+
+/**
+ * 模板表单默认值工厂。
+ * customFieldValues 使用 { [fieldId]: value } 的 Map 结构，
+ * 方便通过 v-model 直接绑定到各字段的输入控件。
+ */
 const defaultTplForm = () => ({
   name: '',
   title: '',
@@ -408,93 +479,72 @@ const defaultTplForm = () => ({
   recurrence_type: 'none',
   lockedFields: [],
   steps: [],
+  customFieldValues: {}, // { fieldId: value }
 })
 
 const tplForm = reactive(defaultTplForm())
 
-const priorities = [
-  { value: 'high', label: '高', activeClass: 'border-red-500 bg-red-50 text-red-500' },
-  { value: 'medium', label: '中', activeClass: 'border-amber-500 bg-amber-50 text-amber-500' },
-  { value: 'low', label: '低', activeClass: 'border-green-500 bg-green-50 bg-green-50/20 text-green-500' },
-]
-
-const recurrenceOptions = [
-  { value: 'none', label: '不重复' },
-  { value: 'workday', label: '工作日' },
-  { value: 'daily', label: '每日' },
-  { value: 'weekly', label: '每周' },
-  { value: 'monthly', label: '每月' },
-]
+// ─── 生命周期 ──────────────────────────────────────────────────
 
 onMounted(async () => {
   await loadData()
 })
 
+// ─── 数据加载 ──────────────────────────────────────────────────
+
+/**
+ * 加载所有模板及其关联数据（steps、tags、customFieldValues）。
+ * 委托给 templateService.loadAll，避免在组件中手动循环加载。
+ */
 async function loadData() {
   loading.value = true
   try {
-    templates.value = await db.getAllTemplates()
-    // Load steps for each template
-    const stepsMap = {}
-    for (const tpl of templates.value) {
-      stepsMap[tpl.id] = await db.getTemplateSteps(tpl.id)
-    }
-    templateSteps.value = stepsMap
+    templates.value = await templateService.loadAll(store.tags)
   } finally {
     loading.value = false
   }
 }
 
-function priorityClass(p) {
-  if (p === 'high') return 'bg-red-50 text-red-500'
-  if (p === 'low') return 'bg-green-50 bg-green-50/20 text-green-500'
-  return 'bg-amber-50 text-amber-500'
+// ─── 显示辅助函数 ──────────────────────────────────────────────
+
+/**
+ * 获取模板锁定字段的中文标签列表（支持自定义字段名展开）。
+ * 使用 helpers.js 的 getLockedFieldLabels，传入 store.customFields 以展开 cf_{id}。
+ */
+function getLockedLabels(tpl) {
+  return getLockedFieldLabels(tpl.locked_fields, store.customFields)
 }
 
-function priorityLabel(p) {
-  if (p === 'high') return '高优先级'
-  if (p === 'low') return '低优先级'
-  return '中优先级'
+/**
+ * 获取模板自定义字段预设值的预览列表，用于卡片展示。
+ * @returns {Array<{fieldId: number, fieldName: string, displayValue: string}>}
+ */
+function getCustomFieldPreview(tpl) {
+  if (!tpl.customFieldValues || tpl.customFieldValues.length === 0) return []
+  return tpl.customFieldValues
+    .map(cfv => {
+      const cf = store.customFields.find(f => f.id === cfv.field_id)
+      if (!cf || !cfv.value) return null
+      return {
+        fieldId: cfv.field_id,
+        fieldName: cf.name,
+        displayValue: cfv.value,
+      }
+    })
+    .filter(Boolean)
 }
 
-function recurrenceLabel(r) {
-  const map = { workday: '工作日', daily: '每日', weekly: '每周', monthly: '每月' }
-  return map[r] || r
+/**
+ * 获取自定义字段的枚举选项列表。
+ * 使用 helpers.js 的 parseEnumValues 统一处理新旧格式。
+ */
+function getEnumOptions(field) {
+  return parseEnumValues(field)
 }
 
-function getTemplateTagNames(tpl) {
-  if (!tpl.tag_ids) return []
-  try {
-    const ids = JSON.parse(tpl.tag_ids)
-    if (!Array.isArray(ids)) return []
-    return ids
-      .map(id => store.tags.find(t => t.id === id))
-      .filter(Boolean)
-      .map(t => t.name)
-  } catch {
-    return []
-  }
-}
+// ─── 表单操作 ──────────────────────────────────────────────────
 
-const lockedFieldLabels = {
-  title: '标题',
-  priority: '优先级',
-  tags: '标签',
-  recurrence: '重复',
-  steps: '步骤',
-}
-
-function getLockedFields(tpl) {
-  if (!tpl.locked_fields) return []
-  try {
-    const fields = JSON.parse(tpl.locked_fields)
-    if (!Array.isArray(fields)) return []
-    return fields.map(f => lockedFieldLabels[f] || f)
-  } catch {
-    return []
-  }
-}
-
+/** 打开新建模板弹窗 */
 function openCreateModal() {
   editingTemplate.value = null
   Object.assign(tplForm, defaultTplForm())
@@ -503,6 +553,10 @@ function openCreateModal() {
   nextTick(() => nameInput.value?.focus())
 }
 
+/**
+ * 打开编辑模板弹窗 —— 加载模板数据到表单。
+ * 包含自定义字段默认值的加载。
+ */
 async function editTemplate(tpl) {
   editingTemplate.value = tpl
   formError.value = ''
@@ -510,24 +564,23 @@ async function editTemplate(tpl) {
   tplForm.title = tpl.title
   tplForm.priority = tpl.priority || 'medium'
   tplForm.recurrence_type = tpl.recurrence_type || 'none'
-  // Parse tag_ids
-  try {
-    tplForm.tagIds = JSON.parse(tpl.tag_ids || '[]')
-  } catch {
-    tplForm.tagIds = []
+  tplForm.tagIds = safeJsonParseArray(tpl.tag_ids)
+  tplForm.lockedFields = safeJsonParseArray(tpl.locked_fields)
+  tplForm.steps = (tpl.steps || []).map(s => ({ title: s.title }))
+
+  // 加载自定义字段默认值：从数组格式转为 { fieldId: value } 的 Map
+  const cfMap = {}
+  if (tpl.customFieldValues) {
+    for (const cfv of tpl.customFieldValues) {
+      cfMap[cfv.field_id] = cfv.value || ''
+    }
   }
-  // Parse locked_fields
-  try {
-    tplForm.lockedFields = JSON.parse(tpl.locked_fields || '[]')
-  } catch {
-    tplForm.lockedFields = []
-  }
-  // Load steps
-  const steps = await db.getTemplateSteps(tpl.id)
-  tplForm.steps = steps.map(s => ({ title: s.title }))
+  tplForm.customFieldValues = cfMap
+
   showModal.value = true
 }
 
+/** 切换标签选中状态 */
 function toggleTag(tagId) {
   const idx = tplForm.tagIds.indexOf(tagId)
   if (idx >= 0) {
@@ -537,14 +590,21 @@ function toggleTag(tagId) {
   }
 }
 
+/** 添加新步骤行 */
 function addStep() {
   tplForm.steps.push({ title: '' })
 }
 
+/** 删除指定步骤行 */
 function removeStep(index) {
   tplForm.steps.splice(index, 1)
 }
 
+/**
+ * 步骤输入框回车处理：
+ * - 空内容时删除该行（至少保留一行）
+ * - 有内容时在下方插入新行
+ */
 function onStepEnter(index) {
   if (!tplForm.steps[index].title.trim()) {
     if (tplForm.steps.length > 1) {
@@ -555,6 +615,12 @@ function onStepEnter(index) {
   }
 }
 
+// ─── 保存 ──────────────────────────────────────────────────────
+
+/**
+ * 保存模板（创建或更新）。
+ * 将表单中的 customFieldValues Map 转为数组格式传给 templateService。
+ */
 async function saveTemplate() {
   if (!tplForm.name.trim() && !tplForm.title.trim()) {
     formError.value = '请填写模板名称和默认标题'
@@ -570,6 +636,14 @@ async function saveTemplate() {
   }
   formError.value = ''
 
+  // 将 customFieldValues Map 转为 [{ field_id, value }] 数组
+  const customFieldValues = Object.entries(tplForm.customFieldValues)
+    .filter(([, v]) => v !== '' && v !== undefined)
+    .map(([fieldId, value]) => ({
+      field_id: parseInt(fieldId),
+      value,
+    }))
+
   const templateData = {
     ...(editingTemplate.value || {}),
     name: tplForm.name.trim(),
@@ -579,32 +653,31 @@ async function saveTemplate() {
     recurrence_config: '{}',
     tag_ids: JSON.stringify(tplForm.tagIds),
     locked_fields: JSON.stringify(tplForm.lockedFields),
+    steps: tplForm.steps.filter(s => s.title.trim()).map(s => ({ title: s.title.trim() })),
+    customFieldValues,
   }
 
-  let savedId
   if (editingTemplate.value) {
-    await db.updateTemplate(templateData)
-    savedId = editingTemplate.value.id
+    await templateService.update(templateData)
   } else {
-    const created = await db.createTemplate(templateData)
-    savedId = created.id
+    await templateService.create(templateData)
   }
-
-  // Save steps
-  const steps = tplForm.steps.filter(s => s.title.trim()).map(s => ({ title: s.title.trim() }))
-  await db.saveTemplateSteps(savedId, steps)
 
   showModal.value = false
   await loadData()
 }
 
+// ─── 删除 ──────────────────────────────────────────────────────
+
+/** 弹出删除确认 */
 function confirmDelete(tpl) {
   deleteTarget.value = tpl
 }
 
+/** 执行删除 */
 async function doDelete() {
   if (!deleteTarget.value) return
-  await db.deleteTemplate(deleteTarget.value.id)
+  await templateService.remove(deleteTarget.value.id)
   deleteTarget.value = null
   await loadData()
 }

@@ -117,6 +117,16 @@ pub struct TemplateStep {
     pub created_at: Option<String>,
 }
 
+/// 模板自定义字段默认值 —— 保存模板中每个自定义字段的预设值。
+/// 与 custom_field_values 类似，但关联到模板而非待办。
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct TemplateCustomFieldValue {
+    pub id: Option<i64>,
+    pub template_id: Option<i64>,
+    pub field_id: i64,
+    pub value: Option<String>,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ActivityLog {
     pub id: Option<i64>,
@@ -1479,6 +1489,8 @@ pub fn delete_template(state: State<AppState>, id: i64) -> Result<(), String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     db.execute("DELETE FROM template_steps WHERE template_id=?1", params![id])
         .map_err(|e| e.to_string())?;
+    db.execute("DELETE FROM template_custom_field_values WHERE template_id=?1", params![id])
+        .map_err(|e| e.to_string())?;
     db.execute("DELETE FROM todo_templates WHERE id=?1", params![id])
         .map_err(|e| e.to_string())?;
     Ok(())
@@ -1553,6 +1565,65 @@ pub fn save_template_steps(
     }
 
     Ok(result)
+}
+
+// ─── Template Custom Field Commands ───────────────────────────
+
+/// 获取模板的自定义字段默认值列表
+#[tauri::command]
+pub fn get_template_custom_field_values(
+    state: State<AppState>,
+    template_id: i64,
+) -> Result<Vec<TemplateCustomFieldValue>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let mut stmt = db
+        .prepare(
+            "SELECT id, template_id, field_id, value
+             FROM template_custom_field_values WHERE template_id=?1",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let values = stmt
+        .query_map(params![template_id], |row| {
+            Ok(TemplateCustomFieldValue {
+                id: row.get(0)?,
+                template_id: row.get(1)?,
+                field_id: row.get(2)?,
+                value: row.get(3)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(values)
+}
+
+/// 批量保存模板的自定义字段默认值（先删后插，与 set_custom_field_values 同模式）
+#[tauri::command]
+pub fn set_template_custom_field_values(
+    state: State<AppState>,
+    template_id: i64,
+    values: Vec<TemplateCustomFieldValue>,
+) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    db.execute(
+        "DELETE FROM template_custom_field_values WHERE template_id=?1",
+        params![template_id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    for cfv in &values {
+        let val = cfv.value.clone().unwrap_or_default();
+        db.execute(
+            "INSERT INTO template_custom_field_values (template_id, field_id, value) VALUES (?1, ?2, ?3)",
+            params![template_id, cfv.field_id, &val],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
 }
 
 // ─── Attachment Management Commands ───────────────────────────

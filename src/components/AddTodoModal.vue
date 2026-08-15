@@ -183,21 +183,57 @@
           </div>
         </div>
 
-        <!-- Custom Fields -->
+        <!--
+          自定义字段区域
+          支持两种字段类型：enum（下拉选择）和 text（自由输入）。
+          每个字段可被模板单独锁定（lockedFields 中包含 "cf_{fieldId}"），
+          锁定后该字段不可编辑，并显示锁定图标。
+        -->
         <div v-if="store.customFields.length > 0">
-          <label class="block text-sm font-medium text-content-secondary text-muted mb-1.5">自定义字段</label>
+          <label class="block text-sm font-medium text-content-secondary text-muted mb-1.5">
+            自定义字段
+            <span
+              v-if="isCustomFieldAllLocked"
+              class="inline-flex items-center gap-0.5 text-xs text-purple-500 font-normal ml-1"
+            >
+              <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                <path
+                  fill-rule="evenodd"
+                  d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
+                  clip-rule="evenodd"
+                />
+              </svg>
+              已锁定
+            </span>
+          </label>
           <div class="space-y-3">
             <div v-for="field in store.customFields" :key="field.id">
-              <label class="block text-xs text-content-tertiary mb-1">{{ field.name }}</label>
+              <label class="block text-xs text-content-tertiary mb-1">
+                {{ field.name }}
+                <span
+                  v-if="isCfLocked(field.id)"
+                  class="inline-flex items-center gap-0.5 text-xs text-purple-500 font-normal ml-1"
+                >
+                  <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                    <path
+                      fill-rule="evenodd"
+                      d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
+                      clip-rule="evenodd"
+                    />
+                  </svg>
+                  已锁定
+                </span>
+              </label>
               <select
                 v-if="field.field_type === 'enum'"
                 v-model="form.customFieldValues[field.id]"
                 class="input-field py-1.5 text-sm"
-                :disabled="props.readonly"
+                :class="isCfLocked(field.id) ? 'opacity-60 cursor-not-allowed bg-surface-2' : ''"
+                :disabled="props.readonly || isCfLocked(field.id)"
               >
                 <option value="">-- 请选择 --</option>
                 <option
-                  v-for="ev in getEnumValues(field)"
+                  v-for="ev in parseEnumValues(field)"
                   :key="ev.value"
                   :value="ev.value"
                 >{{ ev.note ? `${ev.value}（${ev.note}）` : ev.value }}</option>
@@ -207,8 +243,9 @@
                 v-model="form.customFieldValues[field.id]"
                 type="text"
                 class="input-field py-1.5 text-sm"
+                :class="isCfLocked(field.id) ? 'opacity-60 cursor-not-allowed bg-surface-2' : ''"
                 :placeholder="'输入' + field.name"
-                :disabled="props.readonly"
+                :disabled="props.readonly || isCfLocked(field.id)"
               />
             </div>
           </div>
@@ -290,7 +327,7 @@
               />
             </svg>
             <span class="text-sm text-content truncate flex-1">{{ form.attachment_name }}</span>
-            <span class="text-xs text-content-tertiary">{{ formatSize(form.attachment_size) }}</span>
+            <span class="text-xs text-content-tertiary">{{ formatFileSize(form.attachment_size) }}</span>
             <button
               v-if="!props.readonly"
               @click="removeAttachment"
@@ -345,32 +382,108 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, nextTick } from 'vue'
+/**
+ * AddTodoModal — 待办新建/编辑/查看弹窗组件
+ *
+ * 职责：
+ *   1. 提供统一的待办表单界面，支持新建、编辑、只读查看三种模式
+ *   2. 根据模板数据预填表单，并正确应用字段锁定（含自定义字段逐个锁定）
+ *   3. 收集表单数据后通过 submit 事件传递给父组件
+ *
+ * 设计要点：
+ *   - 所有共享常量（优先级、重复类型等）统一从 helpers.js 引入，避免 DRY 违反
+ *   - 字段锁定分两层：标准字段用 isFieldLocked，自定义字段用 isCfLocked
+ *   - 模板预填数据通过 todo._templateData 传入，包含 customFieldValues
+ */
+import { ref, reactive, computed, watch, nextTick } from 'vue'
 import { useAppStore } from '../stores/app'
 import { open } from '@tauri-apps/api/dialog'
 import { readBinaryFile } from '@tauri-apps/api/fs'
 import { invoke } from '@tauri-apps/api/tauri'
 import RichEditor from './RichEditor.vue'
 
+// ─── 共享工具导入 ─────────────────────────────────────────────
+// 从 helpers.js 引入统一的常量和工具函数，消除各组件间的重复定义
+import {
+  PRIORITIES,
+  RECURRENCE_OPTIONS,
+  parseEnumValues,
+  formatFileSize,
+  isFieldLocked,
+  isCustomFieldLocked,
+} from '../utils/helpers'
+
 const store = useAppStore()
 
+// ─── Props & Emits ────────────────────────────────────────────
+
 const props = defineProps({
+  /** 控制弹窗显示/隐藏 */
   show: Boolean,
+  /**
+   * 待办数据对象：
+   * - 编辑模式：传入已有待办（含 id）
+   * - 新建模式：传 null 或 { _isNew: true } 对象
+   * - 模板预填：_isNew 对象上附带 _templateData
+   */
   todo: { type: Object, default: null },
+  /**
+   * 被锁定的字段名数组。
+   * 标准字段：['title', 'priority', 'tags', 'recurrence', 'steps']
+   * 自定义字段：['cf_1', 'cf_3']（cf_ 前缀 + 字段 ID）
+   */
   lockedFields: { type: Array, default: () => [] },
+  /** 是否处于只读查看模式 */
   readonly: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['close', 'submit'])
 
+// ─── 锁定状态判断 ─────────────────────────────────────────────
+
+/**
+ * 判断标准字段是否被锁定。
+ * 委托给 helpers.js 的 isFieldLocked，统一处理 readonly + lockedFields 逻辑。
+ *
+ * @param {string} field - 字段名（title/priority/tags/recurrence/steps）
+ * @returns {boolean}
+ */
 function isLocked(field) {
-  return props.readonly || props.lockedFields.includes(field)
+  return isFieldLocked(field, props.lockedFields, props.readonly)
 }
 
-const titleInput = ref(null)
-const isEditing = ref(false)
-const attachmentError = ref('')
+/**
+ * 判断指定自定义字段是否被锁定。
+ * 锁定标识格式为 "cf_{fieldId}"，存储在 lockedFields 数组中。
+ *
+ * @param {number} fieldId - 自定义字段 ID
+ * @returns {boolean}
+ */
+function isCfLocked(fieldId) {
+  return isCustomFieldLocked(fieldId, props.lockedFields)
+}
 
+/**
+ * 计算是否所有自定义字段都被锁定。
+ * 用于在自定义字段区域标题显示锁定图标。
+ */
+const isCustomFieldAllLocked = computed(() => {
+  if (store.customFields.length === 0) return false
+  return store.customFields.every(cf => isCfLocked(cf.id))
+})
+
+// ─── 响应式状态 ───────────────────────────────────────────────
+
+const titleInput = ref(null)   // 标题输入框引用，用于自动聚焦
+const isEditing = ref(false)   // 当前是否为编辑模式
+const attachmentError = ref('') // 附件上传错误信息
+
+// ─── 表单数据模型 ─────────────────────────────────────────────
+
+/**
+ * 生成表单默认值。
+ * 使用函数返回新对象，确保每次重置时不会引用同一对象。
+ */
 const defaultForm = () => ({
   title: '',
   notes: '',
@@ -385,70 +498,88 @@ const defaultForm = () => ({
   attachment_name: null,
   attachment_size: 0,
   steps: [],
+  /**
+   * 自定义字段值，以 { fieldId: value } 形式存储。
+   * 使用 Map 结构便于 v-model 双向绑定，提交时转换为数组格式。
+   */
   customFieldValues: {},
 })
 
 const form = reactive(defaultForm())
 
-const priorities = [
-  { value: 'high', label: '高', activeClass: 'border-red-500 bg-red-50 text-red-500' },
-  { value: 'medium', label: '中', activeClass: 'border-amber-500 bg-amber-50 text-amber-500' },
-  { value: 'low', label: '低', activeClass: 'border-green-500 bg-green-50 bg-green-50/20 text-green-500' },
-]
+// ─── 共享常量引用 ─────────────────────────────────────────────
+// 直接使用 helpers.js 中的统一配置，不再本地维护副本
+const priorities = PRIORITIES
+const recurrenceOptions = RECURRENCE_OPTIONS
 
-const recurrenceOptions = [
-  { value: 'none', label: '不重复' },
-  { value: 'workday', label: '工作日' },
-  { value: 'daily', label: '每日' },
-  { value: 'weekly', label: '每周' },
-  { value: 'monthly', label: '每月' },
-]
+// ─── 弹窗打开时的数据初始化 ───────────────────────────────────
 
+/**
+ * 监听弹窗打开事件，根据传入的 todo 对象初始化表单。
+ *
+ * 三种场景：
+ *   1. 编辑已有待办（!_isNew）：从 todo 对象加载所有字段
+ *   2. 从模板新建（_isNew + _templateData）：预填模板数据 + 应用字段锁定
+ *   3. 普通新建（_isNew 或 null）：使用默认空表单
+ */
 watch(
   () => props.show,
   async val => {
-    if (val) {
-      await nextTick()
-      if (!props.readonly) {
-        titleInput.value?.focus()
+    if (!val) return
+
+    await nextTick()
+    if (!props.readonly) {
+      titleInput.value?.focus()
+    }
+    attachmentError.value = ''
+
+    if (props.todo && !props.todo._isNew) {
+      // ── 场景 1：编辑已有待办 ──
+      isEditing.value = true
+      form.title = props.todo.title
+      form.notes = props.todo.notes || ''
+      form.priority = props.todo.priority || 'medium'
+      form.tagIds = (props.todo.tags || []).map(t => t.id)
+      form.due_date = props.todo.due_date || ''
+      form.reminder_enabled = !!props.todo.reminder_at
+      form.reminder_at = props.todo.reminder_at ? props.todo.reminder_at.slice(0, 16) : ''
+      form.recurrence_type = props.todo.recurrence_type || 'none'
+      form.recurrence_config = props.todo.recurrence_config || '{}'
+      form.attachment_path = props.todo.attachment_path || null
+      form.attachment_name = props.todo.attachment_name || null
+      form.attachment_size = props.todo.attachment_size || 0
+      form.steps = (props.todo.steps || []).map(s => ({ title: s.title, completed: !!s.completed }))
+
+      // 加载自定义字段值：从数组格式 [{field_id, value}] 转为 Map 格式 {fieldId: value}
+      form.customFieldValues = {}
+      if (props.todo.customFieldValues) {
+        for (const cfv of props.todo.customFieldValues) {
+          form.customFieldValues[cfv.field_id] = cfv.value || ''
+        }
       }
-      attachmentError.value = ''
-      if (props.todo && !props.todo._isNew) {
-        isEditing.value = true
-        form.title = props.todo.title
-        form.notes = props.todo.notes || ''
+    } else {
+      // ── 场景 2/3：新建模式 ──
+      isEditing.value = false
+      Object.assign(form, defaultForm())
+
+      if (props.todo?._isNew) {
+        // 小窗模式传入的基础预填
+        form.title = props.todo.title || ''
         form.priority = props.todo.priority || 'medium'
         form.tagIds = (props.todo.tags || []).map(t => t.id)
-        form.due_date = props.todo.due_date || ''
-        form.reminder_enabled = !!props.todo.reminder_at
-        form.reminder_at = props.todo.reminder_at ? props.todo.reminder_at.slice(0, 16) : ''
-        form.recurrence_type = props.todo.recurrence_type || 'none'
-        form.recurrence_config = props.todo.recurrence_config || '{}'
-        form.attachment_path = props.todo.attachment_path || null
-        form.attachment_name = props.todo.attachment_name || null
-        form.attachment_size = props.todo.attachment_size || 0
-        // Load steps from existing todo
-        form.steps = (props.todo.steps || []).map(s => ({ title: s.title, completed: !!s.completed }))
-        // Load custom field values from existing todo
-        form.customFieldValues = {}
-        if (props.todo.customFieldValues) {
-          for (const cfv of props.todo.customFieldValues) {
-            form.customFieldValues[cfv.field_id] = cfv.value || ''
-          }
-        }
-      } else {
-        isEditing.value = false
-        Object.assign(form, defaultForm())
-        // Prefill from mini mode if available
-        if (props.todo?._isNew) {
-          form.title = props.todo.title || ''
-          form.priority = props.todo.priority || 'medium'
-          form.tagIds = (props.todo.tags || []).map(t => t.id)
-          // Apply template data if present
-          if (props.todo._templateData) {
-            form.recurrence_type = props.todo._templateData.recurrence_type || 'none'
-            form.recurrence_config = props.todo._templateData.recurrence_config || '{}'
-            form.steps = (props.todo._templateData.steps || []).map(s => ({ title: s.title, completed: !!s.completed }))
+
+        // 模板预填数据：包含重复类型、步骤、自定义字段值
+        if (props.todo._templateData) {
+          const tpl = props.todo._templateData
+          form.recurrence_type = tpl.recurrence_type || 'none'
+          form.recurrence_config = tpl.recurrence_config || '{}'
+          form.steps = (tpl.steps || []).map(s => ({ title: s.title, completed: !!s.completed }))
+
+          // 预填模板中的自定义字段默认值
+          if (tpl.customFieldValues) {
+            for (const cfv of tpl.customFieldValues) {
+              form.customFieldValues[cfv.field_id] = cfv.value || ''
+            }
           }
         }
       }
@@ -456,6 +587,12 @@ watch(
   },
 )
 
+// ─── 表单操作方法 ─────────────────────────────────────────────
+
+/**
+ * 切换标签的选中状态。
+ * 已选则移除，未选则加入。
+ */
 function toggleTag(tagId) {
   const idx = form.tagIds.indexOf(tagId)
   if (idx >= 0) {
@@ -465,6 +602,11 @@ function toggleTag(tagId) {
   }
 }
 
+/**
+ * 上传附件。
+ * 流程：打开文件选择器 → 读取文件检查大小 → 调用 Rust 命令保存到应用数据目录。
+ * 限制：单文件最大 10MB。
+ */
 async function uploadAttachment() {
   try {
     const selected = await open({
@@ -473,7 +615,8 @@ async function uploadAttachment() {
     })
     if (!selected) return
     const filePath = typeof selected === 'string' ? selected : selected[0]
-    // Read file to check size
+
+    // 读取文件以检查大小（避免上传超大文件）
     const contents = await readBinaryFile(filePath)
     const size = contents.byteLength
     if (size > 10 * 1024 * 1024) {
@@ -481,7 +624,8 @@ async function uploadAttachment() {
       return
     }
     attachmentError.value = ''
-    // Save to app data via Rust command
+
+    // 调用 Rust 端命令将文件复制到应用数据目录的 attachments 子目录
     const fileName = filePath.split(/[/\\]/).pop()
     const result = await invoke('save_attachment', { filePath, fileName })
     form.attachment_path = result.path
@@ -492,6 +636,7 @@ async function uploadAttachment() {
   }
 }
 
+/** 移除已上传的附件，重置附件相关状态。 */
 function removeAttachment() {
   form.attachment_path = null
   form.attachment_name = null
@@ -499,42 +644,39 @@ function removeAttachment() {
   attachmentError.value = ''
 }
 
+/** 添加一个空白步骤。 */
 function addStep() {
   form.steps.push({ title: '', completed: false })
 }
 
+/** 删除指定索引的步骤。 */
 function removeStep(index) {
   form.steps.splice(index, 1)
 }
 
-function formatSize(bytes) {
-  if (!bytes) return ''
-  if (bytes < 1024) return bytes + ' B'
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
-}
+// ─── 提交 ─────────────────────────────────────────────────────
 
-function getEnumValues(field) {
-  try {
-    const arr = JSON.parse(field.enum_values || '[]')
-    return arr.map(item => {
-      if (typeof item === 'string') return { value: item, note: '' }
-      return { value: item.value || '', note: item.note || '' }
-    })
-  } catch {
-    return []
-  }
-}
-
+/**
+ * 提交表单数据。
+ *
+ * 数据转换：
+ *   - steps：过滤掉空白步骤
+ *   - customFieldValues：从 Map {fieldId: value} 转为数组 [{field_id, value}]
+ *   - reminder_at：仅在启用提醒时附加秒数后缀
+ */
 function submit() {
   if (!form.title.trim()) return
+
   const reminderAt = form.reminder_enabled && form.reminder_at ? form.reminder_at + ':00' : null
-  // Filter out empty steps
+
+  // 过滤空白步骤，只保留有内容的
   const steps = form.steps.filter(s => s.title.trim()).map(s => ({ title: s.title.trim(), completed: !!s.completed }))
-  // Build custom field values array
+
+  // 将 Map 格式的自定义字段值转换为后端需要的数组格式
   const customFieldValues = Object.entries(form.customFieldValues)
     .filter(([, v]) => v !== '' && v !== null && v !== undefined)
     .map(([fieldId, value]) => ({ field_id: parseInt(fieldId), value }))
+
   emit('submit', {
     ...(props.todo || {}),
     title: form.title.trim(),

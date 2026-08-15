@@ -589,6 +589,19 @@
 </template>
 
 <script setup>
+/**
+ * TodayView — 今日待办看板视图
+ *
+ * 职责：
+ *   1. 展示今日待办的看板视图（待处理/进行中/等待中/已完成）
+ *   2. 支持快速添加、从模板创建、编辑、删除、详情查看等操作
+ *   3. 支持历史未完成待办的展示和拖拽到今日
+ *
+ * 设计要点：
+ *   - 所有优先级/重复类型的显示逻辑统一使用 helpers.js 的共享函数
+ *   - 模板创建流程通过 templateService 加载完整数据（含自定义字段值）
+ *   - 历史拖拽使用原生鼠标事件（Tauri v1 下 HTML5 drag API 有兼容性问题）
+ */
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useAppStore } from '../stores/app'
 import * as db from '../utils/db'
@@ -599,43 +612,69 @@ import KanbanColumn from '../components/KanbanColumn.vue'
 import CompactTodoItem from '../components/CompactTodoItem.vue'
 import ActivityHistoryModal from '../components/ActivityHistoryModal.vue'
 
+// ─── 共享工具导入 ─────────────────────────────────────────────
+// 统一使用 helpers.js 中的函数，消除本文件中的重复定义
+import {
+  priorityClass,
+  priorityLabel,
+  priorityColor,
+  priorityDot,
+  recurrenceLabel,
+  safeJsonParseArray,
+  formatDate,
+} from '../utils/helpers'
+
 const store = useAppStore()
 
-const showFullModal = ref(false)
-const editingTodo = ref(null)
-const deletingTodo = ref(null)
-const quickTitle = ref('')
-const allCollapsed = ref(false)
-const detailTodo = ref(null)
-const showDetailModal = ref(false)
-const showTemplatePicker = ref(false)
-const templateList = ref([])
-const templateLoading = ref(false)
-const modalLockedFields = ref([])
+// ─── 弹窗状态 ─────────────────────────────────────────────────
 
-// Activity history modal
+const showFullModal = ref(false)       // 新建/编辑待办弹窗
+const editingTodo = ref(null)          // 当前编辑的待办对象
+const deletingTodo = ref(null)         // 待删除的待办对象
+const detailTodo = ref(null)           // 详情弹窗中的待办
+const showDetailModal = ref(false)     // 详情弹窗开关
+const showTemplatePicker = ref(false)  // 模板选择器开关
+const templateList = ref([])           // 模板列表
+const templateLoading = ref(false)     // 模板加载中
+const modalLockedFields = ref([])      // 弹窗中被锁定的字段列表
+
+// 活动历史弹窗
 const showHistoryModal = ref(false)
 const historyTodo = ref(null)
 
-// Historical drag state
-const histDragState = ref(null) // { todo, startX, startY, x, y, active, targetStatus }
-const histDragTodo = ref(null)
-const histDragTargetStatus = ref('pending')
-const showHistWarning = ref(false)
-const skipHistWarning = ref(false)
-const HIST_DRAG_THRESHOLD = 5
+// 已完成弹窗
+const showDoneModal = ref(false)
 
+// ─── 快速添加 ─────────────────────────────────────────────────
+
+const quickTitle = ref('')
+const allCollapsed = ref(false)
+
+// ─── 历史拖拽状态 ─────────────────────────────────────────────
+// 使用原生鼠标事件而非 HTML5 drag API，因为 Tauri v1 下后者有兼容性问题
+
+const histDragState = ref(null)  // 拖拽状态对象 { todo, startX, startY, x, y, active, targetStatus }
+const histDragTodo = ref(null)   // 被拖拽的历史待办
+const histDragTargetStatus = ref('pending')  // 拖拽目标状态
+const showHistWarning = ref(false)  // 是否显示历史拖拽确认弹窗
+const skipHistWarning = ref(false)  // 是否跳过后续确认
+const HIST_DRAG_THRESHOLD = 5      // 拖拽触发阈值（像素）
+
+// ─── 计算属性 ─────────────────────────────────────────────────
+
+/** 按状态分类的今日待办 */
 const pendingTodos = computed(() => store.currentTodos.filter(t => t.status === 'pending'))
 const inProgressTodos = computed(() => store.currentTodos.filter(t => t.status === 'in_progress'))
 const blockedTodos = computed(() => store.currentTodos.filter(t => t.status === 'blocked'))
 const doneTodos = computed(() => store.currentTodos.filter(t => t.status === 'done'))
-const visibleDoneTodos = computed(() => doneTodos.value.slice(0, 3))
-const showDoneModal = ref(false)
 
-// Group historical incomplete todos by date
+/**
+ * 历史未完成待办按日期分组。
+ * 分组逻辑：今天 → 显示日期标签；昨天 → "昨日"；更早 → "X月X日 周X"
+ */
 const historicalGroups = computed(() => {
-  const today = formatDateStr(new Date())
-  const yesterday = formatDateStr(new Date(Date.now() - 86400000))
+  const today = formatDate(new Date())
+  const yesterday = formatDate(new Date(Date.now() - 86400000))
   const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 
   const pastIncomplete = store.incompleteTodos.filter(t => t.todo_date < today)
@@ -656,6 +695,7 @@ const historicalGroups = computed(() => {
     groupMap[date].todos.push(todo)
   }
 
+  // 每组内按创建时间倒序排列
   for (const group of Object.values(groupMap)) {
     group.todos.sort((a, b) => {
       const aTime = a.created_at ? new Date(a.created_at).getTime() : 0
@@ -667,9 +707,7 @@ const historicalGroups = computed(() => {
   return Object.values(groupMap).sort((a, b) => b.date.localeCompare(a.date))
 })
 
-function formatDateStr(d) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
+// ─── 生命周期 ─────────────────────────────────────────────────
 
 onMounted(async () => {
   await store.loadTags()
@@ -677,7 +715,7 @@ onMounted(async () => {
   await store.loadIncompleteTodos()
   await store.loadOverviewStats()
 
-  // Load skip warning preference
+  // 加载历史拖拽跳过偏好设置
   try {
     const skip = await db.getSetting('skip_historical_drag_warning')
     if (skip === 'true') skipHistWarning.value = true
@@ -685,7 +723,7 @@ onMounted(async () => {
     console.error('Failed to load skip warning setting:', e)
   }
 
-  // Check if we're returning from mini mode with pending data
+  // 检查是否从小窗模式返回，有待处理的数据
   if (store.pendingQuickAdd) {
     const data = store.pendingQuickAdd
     editingTodo.value = {
@@ -705,12 +743,13 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  // Clean up any lingering drag listeners
+  // 清理拖拽事件监听器，防止内存泄漏
   document.removeEventListener('mousemove', onHistMouseMove)
   document.removeEventListener('mouseup', onHistMouseUp)
 })
 
-// Watch for mini mode → full mode transitions
+// ─── 小窗模式 → 完整模式的监听 ────────────────────────────────
+
 watch(
   () => store.pendingQuickAdd,
   data => {
@@ -739,6 +778,9 @@ watch(
   },
 )
 
+// ─── 待办操作方法 ─────────────────────────────────────────────
+
+/** 快速添加待办（仅标题，默认中优先级） */
 async function quickAdd() {
   if (!quickTitle.value.trim()) return
   await store.addTodo({
@@ -751,12 +793,14 @@ async function quickAdd() {
   await store.loadIncompleteTodos()
 }
 
+/** 切换待办状态（待处理↔已完成等） */
 async function handleToggle(todo) {
   await store.toggleTodoStatus(todo)
   await store.loadOverviewStats()
   await store.loadIncompleteTodos()
 }
 
+/** 看板拖放：更新待办状态 */
 async function handleDrop({ todoId, newStatus }) {
   const todo = store.currentTodos.find(t => t.id === todoId)
   if (!todo || todo.status === newStatus) return
@@ -765,20 +809,24 @@ async function handleDrop({ todoId, newStatus }) {
   await store.loadIncompleteTodos()
 }
 
+/** 打开编辑弹窗 */
 function handleEdit(todo) {
   editingTodo.value = todo
   showFullModal.value = true
 }
 
+/** 打开新建弹窗 */
 function openNewTodoModal() {
   editingTodo.value = null
   showFullModal.value = true
 }
 
+/** 标记待删除 */
 function handleDelete(todo) {
   deletingTodo.value = todo
 }
 
+/** 打开详情弹窗 */
 function handleDetail({ todo }) {
   detailTodo.value = todo
   showDetailModal.value = true
@@ -804,9 +852,10 @@ function closeHistoryModal() {
   historyTodo.value = null
 }
 
+/** 切换步骤完成状态 */
 async function handleStepToggle(step) {
   await store.toggleStep(step.id)
-  // Reload the detail todo to reflect updated steps/status
+  // 刷新详情弹窗中的待办数据
   if (detailTodo.value) {
     const updated = store.currentTodos.find(t => t.id === detailTodo.value.id)
     if (updated) {
@@ -815,6 +864,7 @@ async function handleStepToggle(step) {
   }
 }
 
+/** 确认删除（移入回收站） */
 async function confirmDelete() {
   if (deletingTodo.value) {
     await store.removeTodo(deletingTodo.value.id)
@@ -824,6 +874,7 @@ async function confirmDelete() {
   }
 }
 
+/** 提交新建/编辑表单 */
 async function handleSubmit(data) {
   if (editingTodo.value && !editingTodo.value._isNew) {
     await store.updateTodo(data)
@@ -841,6 +892,9 @@ function closeFullModal() {
   modalLockedFields.value = []
 }
 
+// ─── 模板相关 ─────────────────────────────────────────────────
+
+/** 打开模板选择器，加载所有模板列表 */
 async function openTemplatePicker() {
   showTemplatePicker.value = true
   templateLoading.value = true
@@ -853,27 +907,29 @@ async function openTemplatePicker() {
   }
 }
 
+/**
+ * 从模板创建待办。
+ *
+ * 完整流程：
+ *   1. 解析模板的锁定字段列表
+ *   2. 解析模板的标签 ID 列表
+ *   3. 加载模板的步骤数据
+ *   4. 加载模板的自定义字段默认值（关键！之前缺失此步骤）
+ *   5. 组装 _templateData 传入 AddTodoModal 进行预填
+ *
+ * @param {Object} tpl - 模板对象
+ */
 async function createFromTemplate(tpl) {
   showTemplatePicker.value = false
 
-  // Parse locked fields
-  let locked = []
-  try {
-    locked = JSON.parse(tpl.locked_fields || '[]')
-  } catch {
-    locked = []
-  }
+  // 解析锁定字段（含标准字段和自定义字段的 "cf_{id}" 标识）
+  const locked = safeJsonParseArray(tpl.locked_fields)
   modalLockedFields.value = locked
 
-  // Parse tags
-  let tagIds = []
-  try {
-    tagIds = JSON.parse(tpl.tag_ids || '[]')
-  } catch {
-    tagIds = []
-  }
+  // 解析标签 ID 列表
+  const tagIds = safeJsonParseArray(tpl.tag_ids)
 
-  // Load template steps
+  // 加载模板步骤
   let steps = []
   try {
     const tplSteps = await db.getTemplateSteps(tpl.id)
@@ -882,7 +938,16 @@ async function createFromTemplate(tpl) {
     steps = []
   }
 
-  // Open modal with pre-filled template data
+  // 加载模板的自定义字段默认值
+  // 这是之前缺失的关键步骤 —— 导致从模板创建时自定义字段值丢失
+  let customFieldValues = []
+  try {
+    customFieldValues = await db.getTemplateCustomFieldValues(tpl.id)
+  } catch {
+    customFieldValues = []
+  }
+
+  // 组装待办对象，通过 _templateData 传递模板预填数据给 AddTodoModal
   editingTodo.value = {
     title: tpl.title || '',
     priority: tpl.priority || 'medium',
@@ -893,36 +958,19 @@ async function createFromTemplate(tpl) {
       recurrence_type: tpl.recurrence_type || 'none',
       recurrence_config: tpl.recurrence_config || '{}',
       steps,
+      customFieldValues,  // 传递自定义字段默认值到弹窗
     },
   }
   showFullModal.value = true
 }
 
-function tplPriorityClass(p) {
-  if (p === 'high') return 'bg-red-50 text-red-500'
-  if (p === 'low') return 'bg-green-50 bg-green-50/20 text-green-500'
-  return 'bg-amber-50 text-amber-500'
-}
-
-function tplPriorityLabel(p) {
-  if (p === 'high') return '高优先级'
-  if (p === 'low') return '低优先级'
-  return '中优先级'
-}
-
-function tplRecurrenceLabel(r) {
-  const map = { workday: '工作日', daily: '每日', weekly: '每周', monthly: '每月' }
-  return map[r] || r
-}
-
+/** 获取模板锁定字段数量（用于模板选择器显示） */
 function getTplLockedCount(tpl) {
-  try {
-    const fields = JSON.parse(tpl.locked_fields || '[]')
-    return Array.isArray(fields) ? fields.length : 0
-  } catch {
-    return 0
-  }
+  const fields = safeJsonParseArray(tpl.locked_fields)
+  return fields.length
 }
+
+// ─── 看板折叠 ─────────────────────────────────────────────────
 
 function toggleAllColumns() {
   allCollapsed.value = !allCollapsed.value
@@ -933,9 +981,15 @@ function toggleAllColumns() {
   )
 }
 
-// ─── Historical Todo Drag & Drop ──────────────────────
+// ─── 历史待办拖拽 ─────────────────────────────────────────────
+
+/**
+ * 历史待办拖拽开始。
+ * 使用原生鼠标事件而非 HTML5 drag API，因为 Tauri v1 下 HTML5 drag API
+ * 存在 dragleave 误触发、dragend 顺序等兼容性问题。
+ */
 function onHistMouseDown(e, todo) {
-  // Don't start drag from buttons
+  // 不从按钮元素开始拖拽
   const tag = e.target.tagName
   if (tag === 'BUTTON' || e.target.closest('button')) return
   if (e.button !== 0) return
@@ -961,6 +1015,7 @@ function onHistMouseMove(e) {
   const dx = e.clientX - histDragState.value.startX
   const dy = e.clientY - histDragState.value.startY
 
+  // 超过阈值才激活拖拽（防止误触）
   if (!histDragState.value.active && (Math.abs(dx) > HIST_DRAG_THRESHOLD || Math.abs(dy) > HIST_DRAG_THRESHOLD)) {
     histDragState.value.active = true
   }
@@ -972,19 +1027,19 @@ function onHistMouseMove(e) {
   }
 }
 
+/**
+ * 检测鼠标位置下方的看板列。
+ * 通过 DOM 查询找到 data-kanban-column 属性的元素，根据列标题判断目标状态。
+ */
 function detectHoverColumn(x, y) {
-  // Temporarily hide ghost so elementFromPoint can see through
+  // 临时隐藏拖拽幽灵元素，以便 elementFromPoint 能检测到下方的列
   const ghostEls = document.querySelectorAll('[data-drag-ghost]')
-  ghostEls.forEach(el => {
-    el.style.display = 'none'
-  })
+  ghostEls.forEach(el => { el.style.display = 'none' })
 
   const el = document.elementFromPoint(x, y)
 
-  // Restore ghost
-  ghostEls.forEach(el => {
-    el.style.display = ''
-  })
+  // 恢复幽灵元素
+  ghostEls.forEach(el => { el.style.display = '' })
 
   if (!el) return null
 
@@ -1014,19 +1069,15 @@ function onHistMouseUp(e) {
   const todo = histDragState.value.todo
   const targetStatus = detectHoverColumn(e.clientX, e.clientY)
 
-  // Clear drag state
   histDragState.value = null
 
   if (!wasActive) return
-
-  // Only trigger if dropped over a valid Kanban column
   if (!targetStatus) return
 
-  // Store for warning dialog
   histDragTodo.value = todo
   histDragTargetStatus.value = targetStatus
 
-  // Check if we should show warning
+  // 根据用户偏好决定是否显示确认弹窗
   if (skipHistWarning.value) {
     executeHistoricalMove()
   } else {
@@ -1034,8 +1085,9 @@ function onHistMouseUp(e) {
   }
 }
 
+/** 确认历史拖拽操作 */
 async function confirmHistDrag() {
-  // Save skip preference if checked
+  // 保存跳过偏好设置
   if (skipHistWarning.value) {
     try {
       await db.setSetting('skip_historical_drag_warning', 'true')
@@ -1051,58 +1103,42 @@ async function confirmHistDrag() {
 function cancelHistDrag() {
   showHistWarning.value = false
   histDragTodo.value = null
-  // Reset skip if user unchecked but then cancelled
 }
 
+/** 执行历史待办移动到今日 */
 async function executeHistoricalMove() {
   const todo = histDragTodo.value
   const targetStatus = histDragTargetStatus.value
   histDragTodo.value = null
 
   if (!todo) return
-
   await store.moveHistoricalTodoToToday(todo.id, targetStatus)
 }
 
-// Helper functions for ghost display
-function getHistPriorityColor(p) {
-  const map = { high: 'text-red-500', medium: 'text-amber-500', low: 'text-green-500' }
-  return map[p] || 'text-amber-500'
-}
+// ─── 显示辅助函数 ─────────────────────────────────────────────
+// 统一使用 helpers.js 中的共享函数，消除重复定义
 
-function getHistPriorityDot(p) {
-  const map = { high: 'bg-red-500', medium: 'bg-amber-500', low: 'bg-green-500' }
-  return map[p] || 'bg-amber-500'
-}
+/** 拖拽幽灵中的优先级颜色 */
+function getHistPriorityColor(p) { return priorityColor(p) }
+function getHistPriorityDot(p) { return priorityDot(p) }
+function getHistPriorityLabel(p) { return priorityLabel(p) }
 
-function getHistPriorityLabel(p) {
-  const map = { high: '高优先级', medium: '中优先级', low: '低优先级' }
-  return map[p] || '中优先级'
-}
-
+/** 状态标签映射 */
 function getHistStatusLabel(status) {
   const map = { pending: '待处理', in_progress: '进行中', blocked: '等待中', done: '已完成' }
   return map[status] || '待处理'
 }
 
-// Helper functions for done modal
-function getPriorityColor(p) {
-  const map = { high: 'text-red-500', medium: 'text-amber-500', low: 'text-green-500' }
-  return map[p] || 'text-amber-500'
-}
+/** 已完成弹窗中的优先级显示 —— 使用共享函数 */
+function getPriorityColor(p) { return priorityColor(p) }
+function getPriorityDot(p) { return priorityDot(p) }
+function getPriorityLabel(p) { return priorityLabel(p) }
 
-function getPriorityDot(p) {
-  const map = { high: 'bg-red-500', medium: 'bg-amber-500', low: 'bg-green-500' }
-  return map[p] || 'bg-amber-500'
-}
+/** 已完成弹窗中的重复类型显示 —— 使用共享函数 */
+function getRecurrenceLabel(type) { return recurrenceLabel(type) }
 
-function getPriorityLabel(p) {
-  const map = { high: '高优先级', medium: '中优先级', low: '低优先级' }
-  return map[p] || '中优先级'
-}
-
-function getRecurrenceLabel(type) {
-  const map = { daily: '每日', weekly: '每周', monthly: '每月', yearly: '每年', workday: '工作日' }
-  return map[type] || ''
-}
+/** 模板选择器中的优先级样式 —— 使用共享函数 */
+function tplPriorityClass(p) { return priorityClass(p) }
+function tplPriorityLabel(p) { return priorityLabel(p) }
+function tplRecurrenceLabel(r) { return recurrenceLabel(r) }
 </script>

@@ -123,6 +123,8 @@ fn main() {
             commands::delete_template,
             commands::get_template_steps,
             commands::save_template_steps,
+            commands::get_template_custom_field_values,
+            commands::set_template_custom_field_values,
             commands::open_attachment,
             commands::show_attachment_in_explorer,
             commands::get_all_attachments,

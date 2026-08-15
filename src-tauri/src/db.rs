@@ -96,6 +96,17 @@ pub fn init_db(conn: &Connection) -> Result<()> {
             FOREIGN KEY (template_id) REFERENCES todo_templates(id) ON DELETE CASCADE
         );
 
+        -- 模板自定义字段默认值：保存每个模板对各自定义字段的预设值
+        CREATE TABLE IF NOT EXISTS template_custom_field_values (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            template_id INTEGER NOT NULL,
+            field_id INTEGER NOT NULL,
+            value TEXT DEFAULT '',
+            FOREIGN KEY (template_id) REFERENCES todo_templates(id) ON DELETE CASCADE,
+            FOREIGN KEY (field_id) REFERENCES custom_fields(id) ON DELETE CASCADE,
+            UNIQUE(template_id, field_id)
+        );
+
         CREATE TABLE IF NOT EXISTS todo_activity_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             todo_id INTEGER NOT NULL,
@@ -133,6 +144,7 @@ pub fn init_db(conn: &Connection) -> Result<()> {
         CREATE INDEX IF NOT EXISTS idx_todo_tags_tag ON todo_tags(tag_id);
         CREATE INDEX IF NOT EXISTS idx_todo_steps_todo ON todo_steps(todo_id);
         CREATE INDEX IF NOT EXISTS idx_activity_log_todo ON todo_activity_log(todo_id);
+        CREATE INDEX IF NOT EXISTS idx_tpl_cf_val_template ON template_custom_field_values(template_id);
         "
     )?;
 

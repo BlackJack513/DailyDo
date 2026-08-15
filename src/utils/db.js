@@ -186,6 +186,15 @@ export async function saveTemplateSteps(templateId, steps) {
   return await invoke('save_template_steps', { templateId, steps })
 }
 
+// Template custom field values
+export async function getTemplateCustomFieldValues(templateId) {
+  return await invoke('get_template_custom_field_values', { templateId })
+}
+
+export async function setTemplateCustomFieldValues(templateId, values) {
+  return await invoke('set_template_custom_field_values', { templateId, values })
+}
+
 // Attachments
 export async function getAllAttachments(statusFilter) {
   return await invoke('get_all_attachments', { statusFilter })
