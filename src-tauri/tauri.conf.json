@@ -59,6 +59,7 @@
         "minHeight": 600,
         "center": true,
         "transparent": false,
+        "fileDropEnabled": true,
         "label": "main"
       }
     ]

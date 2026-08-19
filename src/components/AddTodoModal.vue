@@ -2,6 +2,18 @@
   <div v-if="show" class="fixed inset-0 z-50 flex items-center justify-center">
     <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
     <div class="relative w-full max-w-lg mx-4 bg-surface rounded-2xl shadow-2xl border border-border">
+      <!-- 拖拽文件悬停覆盖层 -->
+      <div
+        v-if="isDragOver"
+        class="drag-overlay"
+      >
+        <div class="drag-overlay-content">
+          <svg class="drag-overlay-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+          </svg>
+          <span>释放以上传附件</span>
+        </div>
+      </div>
       <!-- Header -->
       <div class="flex items-center justify-between px-6 py-4 border-b border-border">
         <h3 class="text-lg font-semibold text-content">
@@ -406,6 +418,7 @@ import { useAppStore } from '../stores/app'
 import { open } from '@tauri-apps/api/dialog'
 import { readBinaryFile } from '@tauri-apps/api/fs'
 import { invoke } from '@tauri-apps/api/tauri'
+import { listen } from '@tauri-apps/api/event'
 import RichEditor from './RichEditor.vue'
 import * as db from '../utils/db'
 
@@ -484,6 +497,12 @@ const isCustomFieldAllLocked = computed(() => {
 const titleInput = ref(null)   // 标题输入框引用，用于自动聚焦
 const isEditing = ref(false)   // 当前是否为编辑模式
 const attachmentError = ref('') // 附件上传错误信息
+const isDragOver = ref(false)  // 拖拽文件悬停状态
+
+// Tauri 拖拽事件取消订阅函数
+let unlistenFileDrop = null
+let unlistenFileDropHover = null
+let unlistenFileDropCancelled = null
 
 // ─── 表单数据模型 ─────────────────────────────────────────────
 
@@ -530,13 +549,79 @@ const recurrenceOptions = RECURRENCE_OPTIONS
 watch(
   () => props.show,
   async val => {
-    if (!val) return
+    if (!val) {
+      // 弹窗关闭时重置拖拽状态
+      isDragOver.value = false
+      return
+    }
 
     await nextTick()
     if (!props.readonly) {
       titleInput.value?.focus()
     }
     attachmentError.value = ''
+
+    // ── 注册 Tauri 文件拖拽事件（仅在弹窗打开时监听）──
+    // 清理旧的监听器
+    if (unlistenFileDrop) { await unlistenFileDrop(); unlistenFileDrop = null }
+    if (unlistenFileDropHover) { await unlistenFileDropHover(); unlistenFileDropHover = null }
+    if (unlistenFileDropCancelled) { await unlistenFileDropCancelled(); unlistenFileDropCancelled = null }
+
+    unlistenFileDropHover = await listen('tauri://file-drop-hover', () => {
+      if (props.show && !props.readonly) {
+        isDragOver.value = true
+      }
+    })
+
+    unlistenFileDropCancelled = await listen('tauri://file-drop-cancelled', () => {
+      isDragOver.value = false
+    })
+
+    unlistenFileDrop = await listen('tauri://file-drop', async (event) => {
+      isDragOver.value = false
+      // 仅在弹窗打开且非只读时处理
+      if (!props.show || props.readonly) return
+
+      // Tauri v1 payload 可能是 string[] 或 { paths: string[] }
+      let filePaths = []
+      if (Array.isArray(event.payload)) {
+        filePaths = event.payload
+      } else if (event.payload && Array.isArray(event.payload.paths)) {
+        filePaths = event.payload.paths
+      }
+      if (filePaths.length === 0) return
+
+      try {
+        for (const filePath of filePaths) {
+          const fileName = filePath.split(/[/\\]/).pop()
+          // 通过 Rust 命令获取文件大小（避免前端 readBinaryFile 大文件）
+          const result = await invoke('save_attachment', { filePath, fileName })
+          if (result.size > 10 * 1024 * 1024) {
+            attachmentError.value = `文件 ${fileName} 超过 10MB 限制`
+            continue
+          }
+
+          if (isEditing.value && props.todo && !props.todo._isNew) {
+            const att = await db.addAttachmentToTodo(props.todo.id, result.path, result.name, result.size)
+            form.attachments.push({
+              id: att.id,
+              file_path: att.file_path,
+              file_name: att.file_name,
+              file_size: att.file_size,
+            })
+          } else {
+            form.attachments.push({
+              path: result.path,
+              name: result.name,
+              size: result.size,
+            })
+          }
+        }
+        attachmentError.value = ''
+      } catch (e) {
+        attachmentError.value = '拖拽上传失败: ' + e
+      }
+    })
 
     if (props.todo && !props.todo._isNew) {
       // ── 场景 1：编辑已有待办 ──
@@ -737,3 +822,48 @@ function submit() {
   emit('submit', submitData)
 }
 </script>
+
+<style scoped>
+/* 拖拽文件悬停覆盖层 — 覆盖整个弹窗，pointer-events: none 确保不阻挡表单交互 */
+.drag-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  background: rgba(59, 130, 246, 0.08);
+  border: 2px dashed rgba(59, 130, 246, 0.5);
+  border-radius: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  animation: dragPulse 1.5s ease-in-out infinite;
+}
+
+.drag-overlay-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  color: rgba(59, 130, 246, 0.85);
+  font-size: 1rem;
+  font-weight: 500;
+  text-shadow: 0 1px 3px rgba(255, 255, 255, 0.8);
+}
+
+.drag-overlay-icon {
+  width: 3rem;
+  height: 3rem;
+  opacity: 0.8;
+}
+
+@keyframes dragPulse {
+  0%, 100% {
+    border-color: rgba(59, 130, 246, 0.3);
+    background: rgba(59, 130, 246, 0.05);
+  }
+  50% {
+    border-color: rgba(59, 130, 246, 0.6);
+    background: rgba(59, 130, 246, 0.12);
+  }
+}
+</style>
