@@ -63,6 +63,15 @@ export const useAppStore = defineStore('app', () => {
   const pendingQuickAdd = ref(null)  // 从小窗"展开"时携带的新建待办数据
   const pendingEditTodo = ref(null)  // 从小窗"展开"时携带的编辑待办数据
 
+  // ─── 休息提醒（Rest Reminder）─────────────────────────────
+  const restReminderEnabled = ref(false)
+  const restReminderInterval = ref(45)
+  const lastRestReminderAt = ref(0)
+
+  function resetRestReminderTimer() {
+    lastRestReminderAt.value = Date.now()
+  }
+
   // ─── 侧边栏配置（Sidebar）────────────────────────────────
   // 分组结构：每个 group 包含 { id, label, items: [{ id, visible }] }
   // 设计意图：支持用户自定义侧边栏模块的显示/隐藏和分组排列
@@ -92,6 +101,7 @@ export const useAppStore = defineStore('app', () => {
       items: [
         { id: 'payday', visible: true },
         { id: 'salaryTimer', visible: true },
+        { id: 'restReminder', visible: true },
       ],
     },
     {
@@ -282,6 +292,23 @@ export const useAppStore = defineStore('app', () => {
       console.error('Failed to load custom fields:', e)
     }
 
+    // Load rest reminder settings
+    try {
+      const rrEnabled = await db.getSetting('rest_reminder_enabled')
+      if (rrEnabled !== null && rrEnabled !== undefined) {
+        restReminderEnabled.value = rrEnabled === 'true'
+      }
+    } catch { /* use default */ }
+    try {
+      const rrInterval = await db.getSetting('rest_reminder_interval')
+      if (rrInterval) {
+        const val = parseInt(rrInterval, 10)
+        if (val >= 15 && val <= 120) {
+          restReminderInterval.value = val
+        }
+      }
+    } catch { /* use default */ }
+
     settingsLoaded.value = true
   }
 
@@ -364,6 +391,15 @@ export const useAppStore = defineStore('app', () => {
                 if (g.id === 'time_tools') {
                   if (!g.items.find(i => i.id === 'salaryTimer')) {
                     g.items.push({ id: 'salaryTimer', visible: true })
+                    migrated = true
+                  }
+                }
+              }
+              // Migrate: ensure 'restReminder' exists in time_tools group
+              for (const g of parsed) {
+                if (g.id === 'time_tools') {
+                  if (!g.items.find(i => i.id === 'restReminder')) {
+                    g.items.push({ id: 'restReminder', visible: true })
                     migrated = true
                   }
                 }
@@ -1142,6 +1178,10 @@ export const useAppStore = defineStore('app', () => {
     isMiniMode,
     pendingQuickAdd,
     pendingEditTodo,
+    restReminderEnabled,
+    restReminderInterval,
+    lastRestReminderAt,
+    resetRestReminderTimer,
     backgroundImage,
     backgroundMode,
     sidebarConfig,

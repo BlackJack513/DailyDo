@@ -365,6 +365,19 @@ const SalaryTimerIcon = {
   },
 }
 
+const RestReminderIcon = {
+  render() {
+    return h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
+      h('path', {
+        'stroke-linecap': 'round',
+        'stroke-linejoin': 'round',
+        'stroke-width': '2',
+        d: 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9',
+      }),
+    ])
+  },
+}
+
 const allNavItems = {
   today: { path: '/today', label: '待办列表', icon: TodayIcon, id: 'today' },
   list: { path: '/list', label: '全部待办', icon: ListIcon, id: 'list' },
@@ -377,6 +390,7 @@ const allNavItems = {
   attachments: { path: '/attachments', label: '附件管理', icon: AttachmentIcon, id: 'attachments' },
   payday: { path: '/payday', label: '倒计时', icon: CountdownIcon, id: 'payday' },
   salaryTimer: { path: '/salary-timer', label: '秒薪计时', icon: SalaryTimerIcon, id: 'salaryTimer' },
+  restReminder: { path: '/rest-reminder', label: '休息提醒', icon: RestReminderIcon, id: 'restReminder' },
   customFields: { path: '/custom-fields', label: '自定义字段', icon: CustomFieldsIcon, id: 'customFields' },
   trash: { path: '/trash', label: '回收站', icon: TrashIcon, id: 'trash', badge: store.overviewStats.trash_count },
   settings: { path: '/settings', label: '设置', icon: SettingsIcon, id: 'settings' },
