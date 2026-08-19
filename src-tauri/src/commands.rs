@@ -94,6 +94,16 @@ pub struct TodoStep {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct TodoAttachment {
+    pub id: i64,
+    pub todo_id: i64,
+    pub file_path: String,
+    pub file_name: String,
+    pub file_size: i64,
+    pub created_at: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Template {
     pub id: Option<i64>,
     pub name: String,
@@ -546,6 +556,94 @@ pub fn save_attachment(
         "name": file_name,
         "size": size,
     }))
+}
+
+/// Get all attachments for a specific todo
+#[tauri::command]
+pub fn get_attachments_by_todo_id(
+    state: State<AppState>,
+    todo_id: i64,
+) -> Result<Vec<TodoAttachment>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let mut stmt = db
+        .prepare("SELECT id, todo_id, file_path, file_name, file_size, created_at FROM todo_attachments WHERE todo_id=?1 ORDER BY id")
+        .map_err(|e| e.to_string())?;
+
+    let attachments = stmt
+        .query_map(params![todo_id], |row| {
+            Ok(TodoAttachment {
+                id: row.get(0)?,
+                todo_id: row.get(1)?,
+                file_path: row.get(2)?,
+                file_name: row.get(3)?,
+                file_size: row.get(4)?,
+                created_at: row.get(5)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(attachments)
+}
+
+/// Add an attachment record to a todo (insert into todo_attachments table)
+#[tauri::command]
+pub fn add_attachment_to_todo(
+    state: State<AppState>,
+    todo_id: i64,
+    file_path: String,
+    file_name: String,
+    file_size: i64,
+) -> Result<TodoAttachment, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let now = chrono::Local::now().format("%Y-%m-%dT%H:%M:%S").to_string();
+
+    let id = db.execute(
+        "INSERT INTO todo_attachments (todo_id, file_path, file_name, file_size, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![todo_id, file_path, file_name, file_size, now],
+    ).map_err(|e| e.to_string())?;
+
+    // Get the actual inserted rowid
+    let actual_id: i64 = db.query_row("SELECT last_insert_rowid()", [], |row| row.get(0)).map_err(|e| e.to_string())?;
+
+    Ok(TodoAttachment {
+        id: actual_id,
+        todo_id,
+        file_path,
+        file_name,
+        file_size,
+        created_at: now,
+    })
+}
+
+/// Delete a single attachment by its id (remove file from disk + delete DB record)
+#[tauri::command]
+pub fn delete_single_attachment_by_id(
+    state: State<AppState>,
+    attachment_id: i64,
+) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    // Get the file path
+    let path: Option<String> = db.query_row(
+        "SELECT file_path FROM todo_attachments WHERE id=?1",
+        params![attachment_id],
+        |row| row.get(0),
+    ).map_err(|e| e.to_string()).ok();
+
+    // Delete file from disk
+    if let Some(ref file_path) = path {
+        let _ = std::fs::remove_file(file_path);
+    }
+
+    // Delete DB record
+    db.execute(
+        "DELETE FROM todo_attachments WHERE id=?1",
+        params![attachment_id],
+    ).map_err(|e| e.to_string())?;
+
+    Ok(())
 }
 
 // ─── Daily Counts ─────────────────────────────────────────────
@@ -1689,9 +1787,10 @@ pub fn show_attachment_in_explorer(file_path: String) -> Result<(), String> {
     Ok(())
 }
 
-/// Info about an attachment (for listing)
+/// Info about an attachment (for listing in AttachmentsView)
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AttachmentInfo {
+    pub id: i64,
     pub todo_id: i64,
     pub todo_title: String,
     pub todo_date: String,
@@ -1701,27 +1800,27 @@ pub struct AttachmentInfo {
     pub attachment_size: i64,
 }
 
-/// Get all attachments from todos (optionally filtered by status)
+/// Get all attachments from todo_attachments table (optionally filtered by todo status)
 #[tauri::command]
 pub fn get_all_attachments(state: State<AppState>, status_filter: Option<String>) -> Result<Vec<AttachmentInfo>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
 
     let sql = match status_filter.as_deref() {
-        Some("done") => "SELECT id, title, todo_date, status, attachment_path, attachment_name, attachment_size FROM todos WHERE attachment_path IS NOT NULL AND attachment_path != '' AND status = 'done' AND deleted_at IS NULL ORDER BY todo_date DESC",
-        Some("all") => "SELECT id, title, todo_date, status, attachment_path, attachment_name, attachment_size FROM todos WHERE attachment_path IS NOT NULL AND attachment_path != '' AND deleted_at IS NULL ORDER BY todo_date DESC",
-        _ => "SELECT id, title, todo_date, status, attachment_path, attachment_name, attachment_size FROM todos WHERE attachment_path IS NOT NULL AND attachment_path != '' AND deleted_at IS NULL ORDER BY todo_date DESC",
+        Some("done") => "SELECT a.id, a.todo_id, t.title, t.todo_date, t.status, a.file_path, a.file_name, a.file_size FROM todo_attachments a JOIN todos t ON a.todo_id = t.id WHERE t.deleted_at IS NULL AND t.status = 'done' ORDER BY a.id DESC",
+        _ => "SELECT a.id, a.todo_id, t.title, t.todo_date, t.status, a.file_path, a.file_name, a.file_size FROM todo_attachments a JOIN todos t ON a.todo_id = t.id WHERE t.deleted_at IS NULL ORDER BY a.id DESC",
     };
 
     let mut stmt = db.prepare(sql).map_err(|e| e.to_string())?;
     let rows = stmt.query_map([], |row| {
         Ok(AttachmentInfo {
-            todo_id: row.get(0)?,
-            todo_title: row.get(1)?,
-            todo_date: row.get(2)?,
-            status: row.get(3)?,
-            attachment_path: row.get(4)?,
-            attachment_name: row.get(5)?,
-            attachment_size: row.get(6)?,
+            id: row.get(0)?,
+            todo_id: row.get(1)?,
+            todo_title: row.get(2)?,
+            todo_date: row.get(3)?,
+            status: row.get(4)?,
+            attachment_path: row.get(5)?,
+            attachment_name: row.get(6)?,
+            attachment_size: row.get(7)?,
         })
     }).map_err(|e| e.to_string())?;
 
@@ -1732,27 +1831,28 @@ pub fn get_all_attachments(state: State<AppState>, status_filter: Option<String>
     Ok(result)
 }
 
-/// Delete attachment for a specific todo (remove file from disk + clear DB fields)
+/// Delete attachment by attachment id (remove file from disk + delete DB record)
+/// Kept for backward compatibility with AttachmentsView
 #[tauri::command]
-pub fn delete_attachment(state: State<AppState>, todo_id: i64) -> Result<(), String> {
+pub fn delete_attachment(state: State<AppState>, attachment_id: i64) -> Result<(), String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
 
-    // Get the attachment path
+    // Get the file path
     let path: Option<String> = db.query_row(
-        "SELECT attachment_path FROM todos WHERE id=?1 AND deleted_at IS NULL",
-        params![todo_id],
+        "SELECT file_path FROM todo_attachments WHERE id=?1",
+        params![attachment_id],
         |row| row.get(0),
-    ).map_err(|e| e.to_string())?;
+    ).map_err(|e| e.to_string()).ok();
 
-    // Delete file from disk if it exists
+    // Delete file from disk
     if let Some(ref file_path) = path {
         let _ = std::fs::remove_file(file_path);
     }
 
-    // Clear attachment fields in database
+    // Delete DB record
     db.execute(
-        "UPDATE todos SET attachment_path=NULL, attachment_name=NULL, attachment_size=0 WHERE id=?1",
-        params![todo_id],
+        "DELETE FROM todo_attachments WHERE id=?1",
+        params![attachment_id],
     ).map_err(|e| e.to_string())?;
 
     Ok(())
@@ -1765,7 +1865,7 @@ pub fn clear_completed_attachments(state: State<AppState>) -> Result<i64, String
 
     // Get all attachment paths from completed todos
     let mut stmt = db.prepare(
-        "SELECT attachment_path FROM todos WHERE status='done' AND attachment_path IS NOT NULL AND attachment_path != '' AND deleted_at IS NULL"
+        "SELECT a.file_path FROM todo_attachments a JOIN todos t ON a.todo_id = t.id WHERE t.status='done' AND t.deleted_at IS NULL"
     ).map_err(|e| e.to_string())?;
 
     let paths: Vec<String> = stmt.query_map([], |row| row.get(0))
@@ -1780,9 +1880,9 @@ pub fn clear_completed_attachments(state: State<AppState>) -> Result<i64, String
         let _ = std::fs::remove_file(path);
     }
 
-    // Clear attachment fields for completed todos
+    // Delete DB records for completed todos' attachments
     db.execute(
-        "UPDATE todos SET attachment_path=NULL, attachment_name=NULL, attachment_size=0 WHERE status='done' AND attachment_path IS NOT NULL AND deleted_at IS NULL",
+        "DELETE FROM todo_attachments WHERE todo_id IN (SELECT id FROM todos WHERE status='done' AND deleted_at IS NULL)",
         [],
     ).map_err(|e| e.to_string())?;
 

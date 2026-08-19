@@ -137,6 +137,16 @@ pub fn init_db(conn: &Connection) -> Result<()> {
             UNIQUE(todo_id, field_id)
         );
 
+        CREATE TABLE IF NOT EXISTS todo_attachments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            todo_id INTEGER NOT NULL,
+            file_path TEXT NOT NULL,
+            file_name TEXT NOT NULL,
+            file_size INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (todo_id) REFERENCES todos(id) ON DELETE CASCADE
+        );
+
         CREATE INDEX IF NOT EXISTS idx_todos_todo_date ON todos(todo_date);
         CREATE INDEX IF NOT EXISTS idx_todos_status ON todos(status);
         CREATE INDEX IF NOT EXISTS idx_todos_deleted ON todos(deleted_at);
@@ -145,8 +155,34 @@ pub fn init_db(conn: &Connection) -> Result<()> {
         CREATE INDEX IF NOT EXISTS idx_todo_steps_todo ON todo_steps(todo_id);
         CREATE INDEX IF NOT EXISTS idx_activity_log_todo ON todo_activity_log(todo_id);
         CREATE INDEX IF NOT EXISTS idx_tpl_cf_val_template ON template_custom_field_values(template_id);
+        CREATE INDEX IF NOT EXISTS idx_todo_attachments_todo ON todo_attachments(todo_id);
         "
     )?;
+
+    // Migration: move old single-attachment data from todos table to todo_attachments
+    {
+        let mut stmt = conn.prepare(
+            "SELECT id, attachment_path, attachment_name, attachment_size FROM todos WHERE attachment_path IS NOT NULL AND attachment_path != ''"
+        )?;
+        let old_attachments: Vec<(i64, String, String, i64)> = stmt.query_map([], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+        })?.filter_map(|r| r.ok()).collect();
+
+        let now = chrono::Local::now().format("%Y-%m-%dT%H:%M:%S").to_string();
+        for (todo_id, path, name, size) in &old_attachments {
+            conn.execute(
+                "INSERT OR IGNORE INTO todo_attachments (todo_id, file_path, file_name, file_size, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+                rusqlite::params![todo_id, path, name, size, &now],
+            )?;
+        }
+
+        if !old_attachments.is_empty() {
+            conn.execute(
+                "UPDATE todos SET attachment_path=NULL, attachment_name=NULL, attachment_size=0 WHERE attachment_path IS NOT NULL",
+                [],
+            )?;
+        }
+    }
 
     // Migration: add new columns if they don't exist (for existing databases)
     let columns: Vec<String> = conn

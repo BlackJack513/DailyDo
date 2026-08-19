@@ -315,33 +315,39 @@
         <!-- Attachment -->
         <div>
           <label class="block text-sm font-medium text-content-secondary text-muted mb-1.5">
-            附件（单个，最大 10MB）
+            附件（可多个，每个最大 10MB）
           </label>
-          <div v-if="form.attachment_name" class="flex items-center gap-2 p-2 rounded-lg bg-surface-secondary">
-            <svg class="w-4 h-4 text-primary flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
-              />
-            </svg>
-            <span class="text-sm text-content truncate flex-1">{{ form.attachment_name }}</span>
-            <span class="text-xs text-content-tertiary">{{ formatFileSize(form.attachment_size) }}</span>
-            <button
-              v-if="!props.readonly"
-              @click="removeAttachment"
-              class="p-1 rounded hover:bg-red-50 hover:bg-red-50/20 text-red-400 hover:text-red-500"
+          <div v-if="form.attachments.length > 0" class="space-y-2">
+            <div
+              v-for="(att, index) in form.attachments"
+              :key="att.id || index"
+              class="flex items-center gap-2 p-2 rounded-lg bg-surface-secondary"
             >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              <svg class="w-4 h-4 text-primary flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
+                />
               </svg>
-            </button>
+              <span class="text-sm text-content truncate flex-1">{{ att.file_name || att.name }}</span>
+              <span class="text-xs text-content-tertiary">{{ formatFileSize(att.file_size || att.size) }}</span>
+              <button
+                v-if="!props.readonly"
+                @click="removeAttachment(index)"
+                class="p-1 rounded hover:bg-red-50 hover:bg-red-50/20 text-red-400 hover:text-red-500"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
           </div>
           <button
-            v-else-if="!props.readonly"
+            v-if="!props.readonly"
             @click="uploadAttachment"
-            class="flex items-center gap-2 text-sm text-primary hover:text-primary-hover"
+            class="flex items-center gap-2 text-sm text-primary hover:text-primary-hover mt-2"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
@@ -351,7 +357,7 @@
                 d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
               />
             </svg>
-            上传附件
+            添加附件
           </button>
           <p v-if="attachmentError" class="text-xs text-red-500 mt-1">{{ attachmentError }}</p>
         </div>
@@ -401,6 +407,7 @@ import { open } from '@tauri-apps/api/dialog'
 import { readBinaryFile } from '@tauri-apps/api/fs'
 import { invoke } from '@tauri-apps/api/tauri'
 import RichEditor from './RichEditor.vue'
+import * as db from '../utils/db'
 
 // ─── 共享工具导入 ─────────────────────────────────────────────
 // 从 helpers.js 引入统一的常量和工具函数，消除各组件间的重复定义
@@ -494,9 +501,7 @@ const defaultForm = () => ({
   reminder_at: '',
   recurrence_type: 'none',
   recurrence_config: '{}',
-  attachment_path: null,
-  attachment_name: null,
-  attachment_size: 0,
+  attachments: [],
   steps: [],
   /**
    * 自定义字段值，以 { fieldId: value } 形式存储。
@@ -545,9 +550,13 @@ watch(
       form.reminder_at = props.todo.reminder_at ? props.todo.reminder_at.slice(0, 16) : ''
       form.recurrence_type = props.todo.recurrence_type || 'none'
       form.recurrence_config = props.todo.recurrence_config || '{}'
-      form.attachment_path = props.todo.attachment_path || null
-      form.attachment_name = props.todo.attachment_name || null
-      form.attachment_size = props.todo.attachment_size || 0
+      // Load existing attachments
+      form.attachments = (props.todo.attachments || []).map(a => ({
+        id: a.id,
+        file_path: a.file_path,
+        file_name: a.file_name,
+        file_size: a.file_size,
+      }))
       form.steps = (props.todo.steps || []).map(s => ({ title: s.title, completed: !!s.completed }))
 
       // 加载自定义字段值：从数组格式 [{field_id, value}] 转为 Map 格式 {fieldId: value}
@@ -605,43 +614,66 @@ function toggleTag(tagId) {
 /**
  * 上传附件。
  * 流程：打开文件选择器 → 读取文件检查大小 → 调用 Rust 命令保存到应用数据目录。
- * 限制：单文件最大 10MB。
+ * 限制：单文件最大 10MB。支持多文件选择。
  */
 async function uploadAttachment() {
   try {
     const selected = await open({
-      multiple: false,
+      multiple: true,
       filters: [{ name: 'All Files', extensions: ['*'] }],
     })
-    if (!selected) return
-    const filePath = typeof selected === 'string' ? selected : selected[0]
+    if (!selected || (Array.isArray(selected) && selected.length === 0)) return
+    const files = Array.isArray(selected) ? selected : [selected]
 
-    // 读取文件以检查大小（避免上传超大文件）
-    const contents = await readBinaryFile(filePath)
-    const size = contents.byteLength
-    if (size > 10 * 1024 * 1024) {
-      attachmentError.value = '文件大小超过 10MB 限制'
-      return
+    for (const filePath of files) {
+      // 读取文件以检查大小（避免上传超大文件）
+      const contents = await readBinaryFile(filePath)
+      const size = contents.byteLength
+      if (size > 10 * 1024 * 1024) {
+        attachmentError.value = `文件 ${filePath.split(/[/\\]/).pop()} 超过 10MB 限制`
+        continue
+      }
+
+      // 调用 Rust 端命令将文件复制到应用数据目录的 attachments 子目录
+      const fileName = filePath.split(/[/\\]/).pop()
+      const result = await invoke('save_attachment', { filePath, fileName })
+
+      // If editing an existing todo, add to DB immediately
+      if (isEditing.value && props.todo && !props.todo._isNew) {
+        const att = await db.addAttachmentToTodo(props.todo.id, result.path, result.name, result.size)
+        form.attachments.push({
+          id: att.id,
+          file_path: att.file_path,
+          file_name: att.file_name,
+          file_size: att.file_size,
+        })
+      } else {
+        // New todo: just store in form for later submission
+        form.attachments.push({
+          path: result.path,
+          name: result.name,
+          size: result.size,
+        })
+      }
     }
     attachmentError.value = ''
-
-    // 调用 Rust 端命令将文件复制到应用数据目录的 attachments 子目录
-    const fileName = filePath.split(/[/\\]/).pop()
-    const result = await invoke('save_attachment', { filePath, fileName })
-    form.attachment_path = result.path
-    form.attachment_name = result.name
-    form.attachment_size = result.size
   } catch (e) {
     attachmentError.value = '上传失败: ' + e
   }
 }
 
-/** 移除已上传的附件，重置附件相关状态。 */
-function removeAttachment() {
-  form.attachment_path = null
-  form.attachment_name = null
-  form.attachment_size = 0
-  attachmentError.value = ''
+/** 移除指定索引的附件。如果是已有附件（有id），同时从数据库删除。 */
+async function removeAttachment(index) {
+  const att = form.attachments[index]
+  if (att.id) {
+    // Existing attachment in DB - delete it
+    try {
+      await db.deleteSingleAttachment(att.id)
+    } catch (e) {
+      console.error('Failed to delete attachment:', e)
+    }
+  }
+  form.attachments.splice(index, 1)
 }
 
 /** 添加一个空白步骤。 */
@@ -677,7 +709,8 @@ function submit() {
     .filter(([, v]) => v !== '' && v !== null && v !== undefined)
     .map(([fieldId, value]) => ({ field_id: parseInt(fieldId), value }))
 
-  emit('submit', {
+  // For new todos, include attachments array; for editing, attachments are already in DB
+  const submitData = {
     ...(props.todo || {}),
     title: form.title.trim(),
     notes: form.notes,
@@ -687,12 +720,20 @@ function submit() {
     todo_date: props.todo?.todo_date || store.currentDate,
     recurrence_type: form.recurrence_type,
     recurrence_config: form.recurrence_config,
-    attachment_path: form.attachment_path,
-    attachment_name: form.attachment_name,
-    attachment_size: form.attachment_size,
     reminder_at: reminderAt,
     steps,
     customFieldValues,
-  })
+  }
+
+  // Only include attachments for new todos (editing handles attachments in real-time)
+  if (!isEditing.value || !props.todo || props.todo._isNew) {
+    submitData.attachments = form.attachments.map(a => ({
+      path: a.path,
+      name: a.name,
+      size: a.size,
+    }))
+  }
+
+  emit('submit', submitData)
 }
 </script>

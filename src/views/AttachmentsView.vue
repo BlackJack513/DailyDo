@@ -74,7 +74,7 @@
       <div v-else class="space-y-3">
         <div
           v-for="att in filteredAttachments"
-          :key="att.todo_id"
+          :key="att.id"
           class="bg-surface rounded-xl border border-border p-4 hover:shadow-md transition-shadow"
         >
           <div class="flex items-center gap-4">
@@ -107,7 +107,7 @@
             <div class="flex items-center gap-2 flex-shrink-0">
               <button
                 @click="showInExplorer(att.attachment_path)"
-                :disabled="openingId === att.todo_id"
+                :disabled="openingId === att.id"
                 class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-muted bg-surface-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 title="在文件资源管理器中显示"
               >
@@ -122,11 +122,11 @@
                 定位
               </button>
               <button
-                @click="openFile(att.attachment_path, att.todo_id)"
-                :disabled="openingId === att.todo_id"
+                @click="openFile(att.attachment_path, att.id)"
+                :disabled="openingId === att.id"
                 class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-primary text-indigo-400 bg-indigo-50 hover:bg-primary-light hover:bg-indigo-50/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                <svg v-if="openingId === att.todo_id" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <svg v-if="openingId === att.id" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
                   <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                   <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
                 </svg>
@@ -138,11 +138,11 @@
                     d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
                   />
                 </svg>
-                {{ openingId === att.todo_id ? '打开中...' : '打开' }}
+                {{ openingId === att.id ? '打开中...' : '打开' }}
               </button>
               <button
                 @click="confirmDelete(att)"
-                :disabled="openingId === att.todo_id"
+                :disabled="openingId === att.id"
                 class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-red-500 bg-red-50 hover:bg-red-100 hover:bg-red-50/40 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -268,9 +268,9 @@ function statusClass(status) {
   return map[status] || 'text-content-tertiary'
 }
 
-async function openFile(filePath, todoId) {
-  if (openingId.value === todoId) return
-  openingId.value = todoId
+async function openFile(filePath, attachmentId) {
+  if (openingId.value === attachmentId) return
+  openingId.value = attachmentId
   try {
     await db.openAttachment(filePath)
   } catch (e) {
@@ -295,7 +295,7 @@ function confirmDelete(att) {
 async function doDelete() {
   if (!deleteTarget.value) return
   try {
-    await db.deleteAttachment(deleteTarget.value.todo_id)
+    await db.deleteAttachment(deleteTarget.value.id)
     deleteTarget.value = null
     await loadData()
   } catch (e) {

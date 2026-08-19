@@ -265,6 +265,7 @@ export async function enrichTodos(todos, db) {
     todo.tags = await db.getTodoTags(todo.id)
     todo.steps = await db.getStepsByTodoId(todo.id)
     todo.customFieldValues = await db.getCustomFieldValues(todo.id)
+    todo.attachments = await db.getAttachmentsByTodoId(todo.id)
   }
   return todos
 }

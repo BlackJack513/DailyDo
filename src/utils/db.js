@@ -200,8 +200,20 @@ export async function getAllAttachments(statusFilter) {
   return await invoke('get_all_attachments', { statusFilter })
 }
 
-export async function deleteAttachment(todoId) {
-  return await invoke('delete_attachment', { todoId })
+export async function getAttachmentsByTodoId(todoId) {
+  return await invoke('get_attachments_by_todo_id', { todoId })
+}
+
+export async function addAttachmentToTodo(todoId, filePath, fileName, fileSize) {
+  return await invoke('add_attachment_to_todo', { todoId, filePath, fileName, fileSize })
+}
+
+export async function deleteSingleAttachment(attachmentId) {
+  return await invoke('delete_single_attachment_by_id', { attachmentId })
+}
+
+export async function deleteAttachment(attachmentId) {
+  return await invoke('delete_attachment', { attachmentId })
 }
 
 export async function clearCompletedAttachments() {

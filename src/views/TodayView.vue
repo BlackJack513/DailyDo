@@ -279,6 +279,7 @@
       @close="closeDetailModal"
       @delete="handleDetailDelete"
       @toggle-step="handleStepToggle"
+      @refresh="handleDetailRefresh"
     />
 
     <!-- Activity History Modal -->
@@ -861,6 +862,14 @@ async function handleStepToggle(step) {
     if (updated) {
       detailTodo.value = updated
     }
+  }
+}
+
+/** 刷新详情弹窗中的附件数据 */
+async function handleDetailRefresh() {
+  if (detailTodo.value) {
+    const attachments = await db.getAttachmentsByTodoId(detailTodo.value.id)
+    detailTodo.value = { ...detailTodo.value, attachments }
   }
 }
 

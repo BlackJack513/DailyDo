@@ -521,6 +521,14 @@ export const useAppStore = defineStore('app', () => {
     } else {
       created.customFieldValues = []
     }
+    if (todo.attachments && todo.attachments.length > 0) {
+      for (const att of todo.attachments) {
+        await db.addAttachmentToTodo(created.id, att.path, att.name, att.size)
+      }
+      created.attachments = await db.getAttachmentsByTodoId(created.id)
+    } else {
+      created.attachments = []
+    }
     if (todo.recurrence_type && todo.recurrence_type !== 'none') {
       created.recurrence_type = todo.recurrence_type
       created.recurrence_config = todo.recurrence_config

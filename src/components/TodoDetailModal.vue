@@ -198,64 +198,86 @@
               ></div>
             </div>
 
-            <!-- Attachment -->
-            <div v-if="todo?.attachment_path" class="space-y-2">
-              <p class="text-xs font-medium text-muted uppercase tracking-wider">附件</p>
-              <div class="flex items-center gap-3 p-3.5 rounded-xl bg-surface-2 border border-divider">
-                <div class="w-9 h-9 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0">
-                  <svg class="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
-                    />
-                  </svg>
-                </div>
-                <div class="flex-1 min-w-0">
-                  <p class="text-sm font-medium text-gray-800 text-content truncate">{{ todo.attachment_name }}</p>
-                  <p class="text-xs text-muted">{{ formatSize(todo.attachment_size) }}</p>
-                </div>
-                <div class="flex items-center gap-1.5">
-                  <button
-                    @click="showInExplorer"
-                    :disabled="opening"
-                    class="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-muted bg-surface-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    title="在文件资源管理器中显示"
-                  >
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <!-- Attachments -->
+            <div v-if="todo?.attachments && todo.attachments.length > 0" class="space-y-2">
+              <p class="text-xs font-medium text-muted uppercase tracking-wider">附件 ({{ todo.attachments.length }})</p>
+              <div class="space-y-2">
+                <div
+                  v-for="att in todo.attachments"
+                  :key="att.id"
+                  class="flex items-center gap-3 p-3.5 rounded-xl bg-surface-2 border border-divider"
+                >
+                  <div class="w-9 h-9 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path
                         stroke-linecap="round"
                         stroke-linejoin="round"
                         stroke-width="2"
-                        d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+                        d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
                       />
                     </svg>
-                    定位
-                  </button>
-                  <button
-                    @click="openAttachment"
-                    :disabled="opening"
-                    class="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium text-primary text-indigo-400 bg-indigo-50 hover:bg-primary-light hover:bg-indigo-50/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    <svg v-if="opening" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                      <path
-                        class="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                      ></path>
-                    </svg>
-                    <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                      />
-                    </svg>
-                    {{ opening ? '打开中...' : '打开' }}
-                  </button>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium text-gray-800 text-content truncate">{{ att.file_name }}</p>
+                    <p class="text-xs text-muted">{{ formatSize(att.file_size) }}</p>
+                  </div>
+                  <div class="flex items-center gap-1.5">
+                    <button
+                      @click="showInExplorer(att.file_path)"
+                      :disabled="openingId === att.id"
+                      class="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-muted bg-surface-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      title="在文件资源管理器中显示"
+                    >
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+                        />
+                      </svg>
+                      定位
+                    </button>
+                    <button
+                      @click="openAttachment(att.file_path, att.id)"
+                      :disabled="openingId === att.id"
+                      class="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium text-primary text-indigo-400 bg-indigo-50 hover:bg-primary-light hover:bg-indigo-50/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <svg v-if="openingId === att.id" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path
+                          class="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                        ></path>
+                      </svg>
+                      <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                        />
+                      </svg>
+                      {{ openingId === att.id ? '打开中...' : '打开' }}
+                    </button>
+                    <button
+                      v-if="!readonly"
+                      @click="deleteAttachment(att.id)"
+                      :disabled="openingId === att.id"
+                      class="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-red-500 bg-red-50 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      title="删除附件"
+                    >
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                        />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -324,6 +346,7 @@
 import { ref, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/tauri'
 import { useAppStore } from '../stores/app'
+import * as db from '../utils/db'
 
 const store = useAppStore()
 
@@ -333,9 +356,9 @@ const props = defineProps({
   readonly: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['close', 'delete', 'toggle-step'])
+const emit = defineEmits(['close', 'delete', 'toggle-step', 'refresh'])
 
-const opening = ref(false)
+const openingId = ref(null)
 const toast = ref({ show: false, message: '', type: 'info' })
 
 let toastTimer = null
@@ -447,31 +470,42 @@ function formatSize(bytes) {
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
 }
 
-async function openAttachment() {
-  if (opening.value || !props.todo?.attachment_path) return
-  opening.value = true
+async function openAttachment(filePath, id) {
+  if (openingId.value === id) return
+  openingId.value = id
   try {
-    await invoke('open_attachment', { filePath: props.todo.attachment_path })
+    await invoke('open_attachment', { filePath })
     showToast('附件已打开', 'success')
   } catch (e) {
     console.error('Failed to open attachment:', e)
     showToast('打开失败：' + (e.message || e), 'error')
   } finally {
-    opening.value = false
+    openingId.value = null
   }
 }
 
-async function showInExplorer() {
-  if (opening.value || !props.todo?.attachment_path) return
-  opening.value = true
+async function showInExplorer(filePath) {
   try {
-    await invoke('show_attachment_in_explorer', { filePath: props.todo.attachment_path })
+    await invoke('show_attachment_in_explorer', { filePath })
     showToast('已在文件资源管理器中定位', 'success')
   } catch (e) {
     console.error('Failed to show in explorer:', e)
     showToast('定位失败：' + (e.message || e), 'error')
+  }
+}
+
+async function deleteAttachment(id) {
+  if (openingId.value === id) return
+  openingId.value = id
+  try {
+    await db.deleteSingleAttachment(id)
+    showToast('附件已删除', 'success')
+    emit('refresh')
+  } catch (e) {
+    console.error('Failed to delete attachment:', e)
+    showToast('删除失败：' + (e.message || e), 'error')
   } finally {
-    opening.value = false
+    openingId.value = null
   }
 }
 </script>
