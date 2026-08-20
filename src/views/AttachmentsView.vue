@@ -1,6 +1,6 @@
 <template>
   <div class="flex-1 flex flex-col h-full bg-surface-secondary bg-body">
-    <PageHeader title="附件管理" subtitle="管理待办附件，释放存储空间" bordered>
+    <PageHeader title="附件管理" subtitle="管理待办附件，释放存储空间">
       <template #actions>
         <div v-if="totalSize > 0" class="text-sm text-content-secondary text-muted">
           已占用
@@ -25,7 +25,7 @@
     </PageHeader>
 
     <!-- Filter tabs -->
-    <div class="px-6 py-3 border-b border-border bg-surface/50">
+    <div class="px-8 pb-4 flex-shrink-0">
       <div class="flex gap-2">
         <button
           @click="filter = 'all'"
@@ -45,7 +45,7 @@
     </div>
 
     <!-- Content -->
-    <div class="flex-1 overflow-y-auto p-6">
+    <div class="flex-1 overflow-y-auto px-8 pb-6">
       <!-- Empty state -->
       <EmptyState
         v-if="filteredAttachments.length === 0 && !loading"

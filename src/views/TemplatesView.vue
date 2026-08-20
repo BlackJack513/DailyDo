@@ -13,7 +13,7 @@
 -->
 <template>
   <div class="flex-1 flex flex-col h-full bg-surface-secondary bg-body">
-    <PageHeader title="待办模板" subtitle="管理常用待办模板，快速创建相似任务" bordered>
+    <PageHeader title="待办模板" subtitle="管理常用待办模板，快速创建相似任务">
       <template #actions>
         <button @click="openCreateModal" class="btn-primary flex items-center gap-2">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -25,7 +25,7 @@
     </PageHeader>
 
     <!-- Content -->
-    <div class="flex-1 overflow-y-auto p-6">
+    <div class="flex-1 overflow-y-auto px-8 pb-6">
       <!-- Empty state -->
       <EmptyState
         v-if="templates.length === 0 && !loading"
