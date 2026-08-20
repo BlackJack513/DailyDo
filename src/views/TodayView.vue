@@ -5,17 +5,7 @@
       :subtitle="`${pendingTodos.length} 待处理 · ${inProgressTodos.length} 进行中 · ${blockedTodos.length} 等待中 · ${doneTodos.length} 已完成`"
     >
       <template #actions>
-        <button @click="openTemplatePicker" class="btn-secondary flex items-center gap-2">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"
-            />
-          </svg>
-          从模板创建
-        </button>
+        <TemplateDropdown @create="createFromTemplate" />
         <button @click="openNewTodoModal" class="btn-primary flex items-center gap-2">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -419,72 +409,6 @@
       </p>
     </div>
 
-    <!-- Template Picker Modal -->
-    <div v-if="showTemplatePicker" class="fixed inset-0 z-50 flex items-center justify-center">
-      <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="showTemplatePicker = false"></div>
-      <div class="relative w-full max-w-md mx-4 bg-surface rounded-2xl shadow-2xl border border-border">
-        <!-- Header -->
-        <div class="flex items-center justify-between px-6 py-4 border-b border-border">
-          <h3 class="text-lg font-semibold text-content">从模板创建待办</h3>
-          <button
-            @click="showTemplatePicker = false"
-            class="p-1 rounded-lg hover:bg-surface-tertiary text-content-tertiary"
-          >
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-        <!-- Template List -->
-        <div class="px-6 py-4 max-h-[50vh] overflow-y-auto">
-          <div v-if="templateList.length === 0 && !templateLoading" class="text-center py-8 text-content-tertiary">
-            <p class="text-sm">暂无模板</p>
-            <p class="text-xs mt-1">请先在「模板管理」中创建模板</p>
-          </div>
-          <div v-else class="space-y-2">
-            <button
-              v-for="tpl in templateList"
-              :key="tpl.id"
-              @click="createFromTemplate(tpl)"
-              class="w-full text-left p-3 rounded-xl border border-border hover:border-primary hover:bg-primary/5 transition-all group"
-            >
-              <div class="flex items-center justify-between">
-                <div class="flex-1 min-w-0">
-                  <h4 class="font-medium text-content truncate">{{ tpl.name }}</h4>
-                  <p class="text-sm text-content-secondary text-muted truncate mt-0.5">{{ tpl.title }}</p>
-                </div>
-                <svg
-                  class="w-4 h-4 text-content-tertiary group-hover:text-primary transition-colors flex-shrink-0 ml-2"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                </svg>
-              </div>
-              <div class="flex flex-wrap items-center gap-1.5 mt-2">
-                <span class="text-xs px-1.5 py-0.5 rounded font-medium" :class="tplPriorityClass(tpl.priority)">
-                  {{ tplPriorityLabel(tpl.priority) }}
-                </span>
-                <span
-                  v-if="tpl.recurrence_type && tpl.recurrence_type !== 'none'"
-                  class="text-xs px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 text-blue-400 font-medium"
-                >
-                  {{ tplRecurrenceLabel(tpl.recurrence_type) }}
-                </span>
-                <span
-                  v-if="getTplLockedCount(tpl) > 0"
-                  class="text-xs px-1.5 py-0.5 rounded bg-purple-50 bg-purple-50/20 text-purple-500 font-medium"
-                >
-                  {{ getTplLockedCount(tpl) }} 个锁定字段
-                </span>
-              </div>
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <!-- Delete Confirm -->
     <div v-if="deletingTodo" class="fixed inset-0 z-50 flex items-center justify-center">
       <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="deletingTodo = null"></div>
@@ -591,11 +515,11 @@ import CompactTodoItem from '../components/CompactTodoItem.vue'
 import ActivityHistoryModal from '../components/ActivityHistoryModal.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import TemplateDropdown from '@/components/TemplateDropdown.vue'
 
 // ─── 共享工具导入 ─────────────────────────────────────────────
 // 统一使用 helpers.js 中的函数，消除本文件中的重复定义
 import {
-  priorityClass,
   priorityLabel,
   priorityColor,
   priorityDot,
@@ -613,9 +537,6 @@ const editingTodo = ref(null)          // 当前编辑的待办对象
 const deletingTodo = ref(null)         // 待删除的待办对象
 const detailTodo = ref(null)           // 详情弹窗中的待办
 const showDetailModal = ref(false)     // 详情弹窗开关
-const showTemplatePicker = ref(false)  // 模板选择器开关
-const templateList = ref([])           // 模板列表
-const templateLoading = ref(false)     // 模板加载中
 const modalLockedFields = ref([])      // 弹窗中被锁定的字段列表
 
 // 活动历史弹窗
@@ -880,20 +801,7 @@ function closeFullModal() {
   modalLockedFields.value = []
 }
 
-// ─── 模板相关 ─────────────────────────────────────────────────
-
-/** 打开模板选择器，加载所有模板列表 */
-async function openTemplatePicker() {
-  showTemplatePicker.value = true
-  templateLoading.value = true
-  try {
-    templateList.value = await db.getAllTemplates()
-  } catch (e) {
-    templateList.value = []
-  } finally {
-    templateLoading.value = false
-  }
-}
+// ─── 模板相关 ────────────────────────────────────────────────
 
 /**
  * 从模板创建待办。
@@ -902,14 +810,12 @@ async function openTemplatePicker() {
  *   1. 解析模板的锁定字段列表
  *   2. 解析模板的标签 ID 列表
  *   3. 加载模板的步骤数据
- *   4. 加载模板的自定义字段默认值（关键！之前缺失此步骤）
+ *   4. 加载模板的自定义字段默认值
  *   5. 组装 _templateData 传入 AddTodoModal 进行预填
  *
- * @param {Object} tpl - 模板对象
+ * @param {Object} tpl - 模板对象（由 TemplateDropdown 组件传入）
  */
 async function createFromTemplate(tpl) {
-  showTemplatePicker.value = false
-
   // 解析锁定字段（含标准字段和自定义字段的 "cf_{id}" 标识）
   const locked = safeJsonParseArray(tpl.locked_fields)
   modalLockedFields.value = locked
@@ -950,12 +856,6 @@ async function createFromTemplate(tpl) {
     },
   }
   showFullModal.value = true
-}
-
-/** 获取模板锁定字段数量（用于模板选择器显示） */
-function getTplLockedCount(tpl) {
-  const fields = safeJsonParseArray(tpl.locked_fields)
-  return fields.length
 }
 
 // ─── 看板折叠 ─────────────────────────────────────────────────
@@ -1124,9 +1024,4 @@ function getPriorityLabel(p) { return priorityLabel(p) }
 
 /** 已完成弹窗中的重复类型显示 —— 使用共享函数 */
 function getRecurrenceLabel(type) { return recurrenceLabel(type) }
-
-/** 模板选择器中的优先级样式 —— 使用共享函数 */
-function tplPriorityClass(p) { return priorityClass(p) }
-function tplPriorityLabel(p) { return priorityLabel(p) }
-function tplRecurrenceLabel(r) { return recurrenceLabel(r) }
 </script>

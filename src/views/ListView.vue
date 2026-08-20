@@ -1,7 +1,8 @@
 <template>
   <div class="h-full flex flex-col overflow-hidden">
-    <PageHeader title="全部待办" :subtitle="`共 ${store.listTodos.length} 条待办`" compact>
+    <PageHeader title="全部待办" :subtitle="`共 ${store.listTodos.length} 条待办`">
       <template #actions>
+        <TemplateDropdown @create="createFromTemplate" />
         <button @click="openAddModal" class="btn-primary flex items-center gap-2">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -215,6 +216,7 @@
     <AddTodoModal
       :show="showModal"
       :todo="editingTodo"
+      :locked-fields="modalLockedFields"
       @close="closeModal"
       @submit="handleSubmit"
     />
@@ -232,11 +234,18 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useAppStore } from '../stores/app'
+import * as db from '../utils/db'
 import AddTodoModal from '../components/AddTodoModal.vue'
 import TodoDetailModal from '../components/TodoDetailModal.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import PriorityBadge from '@/components/PriorityBadge.vue'
+import TemplateDropdown from '@/components/TemplateDropdown.vue'
+import {
+  priorityLabel,
+  recurrenceLabel,
+  safeJsonParseArray,
+} from '../utils/helpers'
 
 const store = useAppStore()
 
@@ -245,6 +254,7 @@ const editingTodo = ref(null)
 const showDetailModal = ref(false)
 const detailTodo = ref(null)
 const customFieldFilterValues = ref({})
+const modalLockedFields = ref([])
 
 // Multi-field sort criteria
 const sortCriteria = ref([{ field: 'todo_date', order: 'desc' }])
@@ -358,6 +368,48 @@ function closeDetailModal() {
 function closeModal() {
   showModal.value = false
   editingTodo.value = null
+  modalLockedFields.value = []
+}
+
+/**
+ * 从模板创建待办（ListView 版本）。
+ * 加载模板的步骤、自定义字段默认值，通过 _templateData 传入 AddTodoModal。
+ */
+async function createFromTemplate(tpl) {
+  const locked = safeJsonParseArray(tpl.locked_fields)
+  modalLockedFields.value = locked
+
+  const tagIds = safeJsonParseArray(tpl.tag_ids)
+
+  let steps = []
+  try {
+    const tplSteps = await db.getTemplateSteps(tpl.id)
+    steps = tplSteps.map(s => ({ title: s.title, completed: false }))
+  } catch {
+    steps = []
+  }
+
+  let customFieldValues = []
+  try {
+    customFieldValues = await db.getTemplateCustomFieldValues(tpl.id)
+  } catch {
+    customFieldValues = []
+  }
+
+  editingTodo.value = {
+    title: tpl.title || '',
+    priority: tpl.priority || 'medium',
+    tags: tagIds.map(id => store.tags.find(t => t.id === id)).filter(Boolean),
+    todo_date: new Date().toISOString().split('T')[0],
+    _isNew: true,
+    _templateData: {
+      recurrence_type: tpl.recurrence_type || 'none',
+      recurrence_config: tpl.recurrence_config || '{}',
+      steps,
+      customFieldValues,
+    },
+  }
+  showModal.value = true
 }
 
 async function handleSubmit(data) {
