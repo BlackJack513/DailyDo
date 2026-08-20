@@ -1,5 +1,5 @@
 <template>
-  <div class="flex-1 flex flex-col h-full bg-surface-secondary bg-body">
+  <div class="flex-1 flex flex-col h-full">
     <PageHeader title="附件管理" subtitle="管理待办附件，释放存储空间">
       <template #actions>
         <div v-if="totalSize > 0" class="text-sm text-content-secondary text-muted">

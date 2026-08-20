@@ -287,7 +287,6 @@ import { useAppStore } from '../stores/app'
 import { exportToJSON, importFromJSON, exportToMarkdown, exportToExcel } from '../utils/export'
 import { open } from '@tauri-apps/api/dialog'
 import { writeBinaryFile, readBinaryFile } from '@tauri-apps/api/fs'
-import { join } from '@tauri-apps/api/path'
 import { appWindow } from '@tauri-apps/api/window'
 import PageHeader from '@/components/PageHeader.vue'
 
@@ -389,7 +388,7 @@ async function uploadBackground() {
     if (longestSide <= SMALL_THRESHOLD) {
       // Small image: save to app data dir and set to tile mode
       const dataDir = await store.getDataDir()
-      const bgPath = await join(dataDir, 'background.png')
+      const bgPath = dataDir.replace(/\\/g, '/') + '/background.png'
       await writeBinaryFile(bgPath, fileData)
       await store.setBackgroundImage(bgPath, 'tile')
       showToast('小图片已自动设置为平铺模式')
@@ -558,7 +557,7 @@ async function confirmCrop() {
 
     // Save to app data dir
     const dataDir = await store.getDataDir()
-    const bgPath = await join(dataDir, 'background.png')
+    const bgPath = dataDir.replace(/\\/g, '/') + '/background.png'
     await writeBinaryFile(bgPath, uint8Array)
 
     await store.setBackgroundImage(bgPath, 'cover')

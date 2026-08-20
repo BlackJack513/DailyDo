@@ -651,6 +651,38 @@
   background-color: rgb(var(--color-body));
 }
 
+/* When background image is active, increase component transparency */
+.has-bg-image .card,
+.has-bg-image .bg-surface,
+.has-bg-image .bg-surface-secondary {
+  background-color: rgba(var(--color-surface), 0.55);
+  backdrop-filter: blur(6px);
+}
+
+.has-bg-image .bg-surface-tertiary {
+  background-color: rgba(var(--color-surface-3), 0.5);
+}
+
+.has-bg-image .sidebar-item:hover {
+  background-color: rgba(var(--color-surface-hover), 0.5);
+}
+
+.has-bg-image .sidebar-item.active {
+  background-color: rgba(var(--color-primary-light), 0.6);
+}
+
+.has-bg-image .input-field {
+  background-color: rgba(var(--color-surface), 0.6);
+}
+
+.has-bg-image .border,
+.has-bg-image .border-b,
+.has-bg-image .border-t,
+.has-bg-image .border-l,
+.has-bg-image .border-r {
+  border-color: rgba(var(--color-divider), 0.4);
+}
+
 /* ═══════════════════════════════════════════════════════
    Mini mode adjustments
    ═══════════════════════════════════════════════════════ */

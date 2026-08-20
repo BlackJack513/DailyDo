@@ -12,7 +12,7 @@
   - 新增自定义字段集成：表单中可设置各自定义字段的默认值，并可选择锁定
 -->
 <template>
-  <div class="flex-1 flex flex-col h-full bg-surface-secondary bg-body">
+  <div class="flex-1 flex flex-col h-full">
     <PageHeader title="待办模板" subtitle="管理常用待办模板，快速创建相似任务">
       <template #actions>
         <button @click="openCreateModal" class="btn-primary flex items-center gap-2">

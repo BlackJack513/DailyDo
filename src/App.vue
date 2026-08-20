@@ -3,7 +3,7 @@
     <!-- Mini mode: dedicated compact view -->
     <MiniModeView v-if="store.isMiniMode" />
     <!-- Normal mode: full layout -->
-    <div v-else class="app-wrapper flex h-screen overflow-hidden relative">
+    <div v-else class="app-wrapper flex h-screen overflow-hidden relative" :class="{ 'has-bg-image': store.backgroundImage }">
       <!-- Background image layer -->
       <div
         v-if="store.backgroundImage"
@@ -11,10 +11,11 @@
         :class="store.backgroundMode === 'tile' ? 'bg-repeat' : 'bg-cover bg-center bg-no-repeat'"
         :style="{ backgroundImage: `url('${store.backgroundImage}')` }"
       ></div>
+      <!-- Overlay - less opaque when background image is present so image shows through more -->
       <div
         v-if="store.backgroundImage"
         class="absolute inset-0 z-0"
-        :class="isDark ? 'bg-black/50' : 'bg-surface/60'"
+        :class="isDark ? 'bg-black/30' : 'bg-surface/40'"
       ></div>
       <!-- App content -->
       <div class="relative z-10 flex h-full w-full">
