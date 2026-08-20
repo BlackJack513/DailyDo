@@ -96,7 +96,47 @@ export function priorityDot(priority) {
   return map[priority] || 'bg-amber-500'
 }
 
-// ─── 重复类型相关 ─────────────────────────────────────────────
+// ─── 状态相关 ────────────────────────────────────────────────
+
+/**
+ * 状态配置表 —— 统一管理四个状态的显示文本和样式类。
+ */
+export const STATUS_MAP = {
+  pending: { label: '待处理', class: 'bg-amber-50 text-amber-600' },
+  in_progress: { label: '进行中', class: 'bg-blue-50 text-blue-600' },
+  blocked: { label: '已阻塞', class: 'bg-amber-50 text-amber-600' },
+  done: { label: '已完成', class: 'bg-green-50 text-green-600' },
+}
+
+/**
+ * 获取状态的中文标签。
+ * @param {string} status
+ * @returns {string}
+ */
+export function statusLabel(status) {
+  return STATUS_MAP[status]?.label || status
+}
+
+/**
+ * 获取状态的 Tailwind 样式类（用于徽章展示）。
+ * @param {string} status
+ * @returns {string}
+ */
+export function statusTagClass(status) {
+  return STATUS_MAP[status]?.class || ''
+}
+
+/**
+ * 获取状态对应的圆点颜色类。
+ * @param {string} status
+ * @returns {string}
+ */
+export function statusDotColor(status) {
+  const map = { pending: 'bg-amber-500', in_progress: 'bg-blue-500', blocked: 'bg-amber-500', done: 'bg-green-500' }
+  return map[status] || 'bg-amber-500'
+}
+
+// ─── 重复类型相关 ──────────────────────────────────────────────
 
 /**
  * 重复类型选项列表 —— 用于表单中的按钮组渲染。

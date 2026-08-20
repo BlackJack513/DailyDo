@@ -1,18 +1,15 @@
 <template>
   <div class="h-full flex flex-col overflow-hidden">
-    <!-- Header -->
-    <div class="px-6 pt-5 pb-3 flex items-center justify-between flex-shrink-0">
-      <div>
-        <h1 class="text-2xl font-bold text-content">全部待办</h1>
-        <p class="text-sm text-content-tertiary mt-0.5">共 {{ store.listTodos.length }} 条待办</p>
-      </div>
-      <button @click="openAddModal" class="btn-primary text-sm px-4 py-2 flex items-center gap-2">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-        </svg>
-        新建待办
-      </button>
-    </div>
+    <PageHeader title="全部待办" :subtitle="`共 ${store.listTodos.length} 条待办`" compact>
+      <template #actions>
+        <button @click="openAddModal" class="btn-primary flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+          新建待办
+        </button>
+      </template>
+    </PageHeader>
 
     <!-- Filters -->
     <div class="px-6 pb-3 flex-shrink-0">
@@ -151,12 +148,7 @@
                 <!-- Status -->
                 <td class="px-3 py-2 sticky left-0 z-10" :class="statusTagBg(todo.status)">
                   <button @click="handleToggleStatus(todo)" class="focus:outline-none w-full text-left">
-                    <span
-                      class="text-xs px-2 py-0.5 rounded-full font-medium"
-                      :class="statusTagClass(todo.status)"
-                    >
-                      {{ statusLabel(todo.status) }}
-                    </span>
+                    <StatusBadge :status="todo.status" />
                   </button>
                 </td>
                 <!-- Title -->
@@ -173,9 +165,7 @@
                 </td>
                 <!-- Priority -->
                 <td class="px-3 py-2">
-                  <span class="text-xs px-1.5 py-0.5 rounded" :class="priorityClass(todo.priority)">
-                    {{ priorityLabel(todo.priority) }}
-                  </span>
+                  <PriorityBadge :priority="todo.priority" />
                 </td>
                 <!-- Date -->
                 <td class="px-3 py-2 text-content-secondary text-xs">
@@ -244,6 +234,9 @@ import { ref, computed, onMounted } from 'vue'
 import { useAppStore } from '../stores/app'
 import AddTodoModal from '../components/AddTodoModal.vue'
 import TodoDetailModal from '../components/TodoDetailModal.vue'
+import PageHeader from '@/components/PageHeader.vue'
+import StatusBadge from '@/components/StatusBadge.vue'
+import PriorityBadge from '@/components/PriorityBadge.vue'
 
 const store = useAppStore()
 
@@ -391,48 +384,12 @@ async function handleToggleStatus(todo) {
   }
 }
 
-function statusLabel(status) {
-  switch (status) {
-    case 'done': return '已完成'
-    case 'in_progress': return '进行中'
-    case 'blocked': return '已阻塞'
-    default: return '待处理'
-  }
-}
-
-function statusTagClass(status) {
-  switch (status) {
-    case 'done': return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-    case 'in_progress': return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-    case 'blocked': return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-    default: return 'bg-gray-100 text-gray-600 dark:bg-gray-800/30 dark:text-gray-400'
-  }
-}
-
 function statusTagBg(status) {
   switch (status) {
     case 'done': return 'bg-green-50/50 dark:bg-green-950/10'
     case 'in_progress': return 'bg-blue-50/50 dark:bg-blue-950/10'
     case 'blocked': return 'bg-red-50/50 dark:bg-red-950/10'
     default: return ''
-  }
-}
-
-function priorityClass(priority) {
-  switch (priority) {
-    case 'high': return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-    case 'medium': return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-    case 'low': return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-    default: return 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
-  }
-}
-
-function priorityLabel(priority) {
-  switch (priority) {
-    case 'high': return '高'
-    case 'medium': return '中'
-    case 'low': return '低'
-    default: return '中'
   }
 }
 

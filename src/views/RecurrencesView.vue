@@ -1,18 +1,15 @@
 <template>
   <div class="h-full flex flex-col overflow-y-auto">
-    <!-- Header -->
-    <div class="px-8 pt-6 pb-4 flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-bold text-content">周期任务</h1>
-        <p class="text-sm text-content-tertiary mt-0.5">管理系统中所有重复待办的周期规则</p>
-      </div>
-      <button @click="openAddModal" class="btn-primary flex items-center gap-2">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-        </svg>
-        新增周期任务
-      </button>
-    </div>
+    <PageHeader title="周期任务" subtitle="管理系统中所有重复待办的周期规则">
+      <template #actions>
+        <button @click="openAddModal" class="btn-primary flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+          新增周期任务
+        </button>
+      </template>
+    </PageHeader>
 
     <div class="flex-1 px-8 pb-6">
       <!-- Loading -->
@@ -21,18 +18,7 @@
       </div>
 
       <!-- Empty -->
-      <div v-else-if="groups.length === 0" class="flex flex-col items-center justify-center h-64 text-content-tertiary">
-        <svg class="w-16 h-16 mb-4 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="1"
-            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-          />
-        </svg>
-        <p class="text-sm">暂无周期任务</p>
-        <p class="text-xs mt-1">点击右上方「新增周期任务」创建</p>
-      </div>
+      <EmptyState v-else-if="groups.length === 0" text="暂无周期任务" hint="点击右上方「新增周期任务」创建" icon="refresh" />
 
       <!-- Groups table -->
       <div v-else class="space-y-3">
@@ -148,6 +134,8 @@ import { ref, computed, onMounted } from 'vue'
 import * as db from '../utils/db'
 import { useAppStore } from '../stores/app'
 import AddTodoModal from '../components/AddTodoModal.vue'
+import PageHeader from '@/components/PageHeader.vue'
+import EmptyState from '@/components/EmptyState.vue'
 
 const store = useAppStore()
 

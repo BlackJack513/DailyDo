@@ -77,21 +77,7 @@
     <!-- Todo List -->
     <div class="flex-1 overflow-y-auto px-3 pb-3 space-y-1.5">
       <!-- Empty state -->
-      <div
-        v-if="activeTodos.length === 0"
-        class="flex flex-col items-center justify-center h-full text-content-tertiary"
-      >
-        <svg class="w-12 h-12 mb-3 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="1.5"
-            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-          />
-        </svg>
-        <p class="text-sm font-medium">没有进行中的待办</p>
-        <p class="text-xs mt-1 opacity-60">点击「新建」添加一个吧</p>
-      </div>
+      <EmptyState v-if="activeTodos.length === 0" text="暂无待办" :large="false" />
 
       <!-- Todo items -->
       <div
@@ -255,6 +241,7 @@
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useAppStore } from '../stores/app'
 import { appWindow } from '@tauri-apps/api/window'
+import EmptyState from '@/components/EmptyState.vue'
 
 const store = useAppStore()
 

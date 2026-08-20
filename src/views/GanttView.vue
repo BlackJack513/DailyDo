@@ -1,29 +1,26 @@
 <template>
   <div class="h-full flex flex-col overflow-y-auto">
-    <!-- Header -->
-    <div class="px-8 pt-6 pb-4 flex items-center justify-between flex-shrink-0">
-      <div>
-        <h1 class="text-2xl font-bold text-content">甘特图</h1>
-        <p class="text-sm text-content-tertiary mt-0.5">可视化任务时间线，了解每日工作节奏</p>
-      </div>
-      <div class="flex items-center gap-3">
-        <!-- Date picker -->
-        <input
-          type="date"
-          :value="selectedDate"
-          @change="onDateChange"
-          class="px-3 py-1.5 rounded-lg border border-border bg-surface text-sm text-content focus:outline-none focus:border-primary transition-colors"
-        />
-        <!-- Today button -->
-        <button
-          @click="goToday"
-          class="px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors"
-          :class="isToday ? 'border-primary bg-primary/10 text-primary' : 'border-border text-content-tertiary hover:border-content-tertiary'"
-        >
-          今天
-        </button>
-      </div>
-    </div>
+    <PageHeader title="甘特图" subtitle="可视化任务时间线，了解每日工作节奏">
+      <template #actions>
+        <div class="flex items-center gap-3">
+          <!-- Date picker -->
+          <input
+            type="date"
+            :value="selectedDate"
+            @change="onDateChange"
+            class="px-3 py-1.5 rounded-lg border border-border bg-surface text-sm text-content focus:outline-none focus:border-primary transition-colors"
+          />
+          <!-- Today button -->
+          <button
+            @click="goToday"
+            class="px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors"
+            :class="isToday ? 'border-primary bg-primary/10 text-primary' : 'border-border text-content-tertiary hover:border-content-tertiary'"
+          >
+            今天
+          </button>
+        </div>
+      </template>
+    </PageHeader>
 
     <!-- Legend -->
     <div class="px-8 pb-3 flex items-center gap-5 flex-shrink-0">
@@ -59,6 +56,7 @@ import { ref, computed, onMounted, watch, onBeforeUnmount, nextTick } from 'vue'
 import * as echarts from 'echarts'
 import * as db from '../utils/db'
 import { useAppStore } from '../stores/app'
+import PageHeader from '@/components/PageHeader.vue'
 
 const store = useAppStore()
 

@@ -1,35 +1,28 @@
 <template>
   <div class="flex-1 flex flex-col h-full bg-surface-secondary bg-body">
-    <!-- Header -->
-    <div class="px-6 py-5 border-b border-border bg-surface">
-      <div class="flex items-center justify-between">
-        <div>
-          <h1 class="text-xl font-bold text-content">附件管理</h1>
-          <p class="text-sm text-content-tertiary mt-1">管理待办附件，释放存储空间</p>
+    <PageHeader title="附件管理" subtitle="管理待办附件，释放存储空间" bordered>
+      <template #actions>
+        <div v-if="totalSize > 0" class="text-sm text-content-secondary text-muted">
+          已占用
+          <span class="font-semibold text-primary">{{ formatSize(totalSize) }}</span>
         </div>
-        <div class="flex items-center gap-3">
-          <div v-if="totalSize > 0" class="text-sm text-content-secondary text-muted">
-            已占用
-            <span class="font-semibold text-primary">{{ formatSize(totalSize) }}</span>
-          </div>
-          <button
-            v-if="completedCount > 0"
-            @click="showBulkConfirm = true"
-            class="btn-secondary flex items-center gap-2 text-sm"
-          >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-              />
-            </svg>
-            清理已完成附件 ({{ completedCount }})
-          </button>
-        </div>
-      </div>
-    </div>
+        <button
+          v-if="completedCount > 0"
+          @click="showBulkConfirm = true"
+          class="btn-secondary flex items-center gap-2 text-sm"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+            />
+          </svg>
+          清理已完成附件 ({{ completedCount }})
+        </button>
+      </template>
+    </PageHeader>
 
     <!-- Filter tabs -->
     <div class="px-6 py-3 border-b border-border bg-surface/50">
@@ -54,21 +47,12 @@
     <!-- Content -->
     <div class="flex-1 overflow-y-auto p-6">
       <!-- Empty state -->
-      <div
+      <EmptyState
         v-if="filteredAttachments.length === 0 && !loading"
-        class="flex flex-col items-center justify-center py-20 text-content-tertiary"
-      >
-        <svg class="w-16 h-16 mb-4 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="1.5"
-            d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
-          />
-        </svg>
-        <p class="text-lg font-medium mb-1">暂无附件</p>
-        <p class="text-sm">待办中的附件会显示在这里</p>
-      </div>
+        text="暂无附件"
+        hint="在待办中添加附件后会在这里显示"
+        icon="folder"
+      />
 
       <!-- Attachment list -->
       <div v-else class="space-y-3">
@@ -98,7 +82,7 @@
                 <span class="text-xs text-content-tertiary">·</span>
                 <span class="text-xs text-content-tertiary">{{ att.todo_date }}</span>
                 <span class="text-xs text-content-tertiary">·</span>
-                <span class="text-xs" :class="statusClass(att.status)">{{ statusLabel(att.status) }}</span>
+                <StatusBadge :status="att.status" />
               </div>
               <p class="text-xs text-content-secondary text-muted truncate mt-0.5">来自：{{ att.todo_title }}</p>
             </div>
@@ -213,6 +197,9 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import * as db from '../utils/db'
+import PageHeader from '@/components/PageHeader.vue'
+import StatusBadge from '@/components/StatusBadge.vue'
+import EmptyState from '@/components/EmptyState.vue'
 
 const attachments = ref([])
 const loading = ref(true)
@@ -252,20 +239,6 @@ function formatSize(bytes) {
   if (bytes < 1024) return bytes + ' B'
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
-}
-
-function statusLabel(status) {
-  const map = { pending: '待处理', in_progress: '进行中', done: '已完成' }
-  return map[status] || status
-}
-
-function statusClass(status) {
-  const map = {
-    pending: 'text-amber-500',
-    in_progress: 'text-blue-500',
-    done: 'text-emerald-500',
-  }
-  return map[status] || 'text-content-tertiary'
 }
 
 async function openFile(filePath, attachmentId) {

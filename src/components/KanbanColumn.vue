@@ -258,17 +258,7 @@
       </div>
 
       <!-- Empty column hint -->
-      <div v-if="todos.length === 0" class="flex flex-col items-center justify-center py-8 text-content-tertiary">
-        <svg class="w-8 h-8 mb-2 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="1.5"
-            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-          />
-        </svg>
-        <p class="text-xs">拖拽待办到此处</p>
-      </div>
+      <EmptyState v-if="todos.length === 0" text="拖拽待办到此处" :large="false" />
     </div>
 
     <!-- Ghost element that follows cursor during drag -->
@@ -330,6 +320,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useAppStore } from '../stores/app'
+import EmptyState from '@/components/EmptyState.vue'
 
 const store = useAppStore()
 

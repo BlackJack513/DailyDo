@@ -1,45 +1,28 @@
 <template>
   <div class="h-full flex flex-col overflow-y-auto">
-    <!-- Header -->
-    <div class="px-8 pt-6 pb-4 flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-bold text-content">回收站</h1>
-        <p class="text-sm text-content-tertiary mt-0.5">已删除的项目将在 7 天后自动清除</p>
-      </div>
-      <button
-        v-if="store.trashTodos.length > 0"
-        @click="confirmClearAll = true"
-        class="btn-danger flex items-center gap-2 text-xs px-3 py-1.5"
-      >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-          />
-        </svg>
-        清空回收站
-      </button>
-    </div>
+    <PageHeader title="回收站" subtitle="已删除的项目将在 7 天后自动清除">
+      <template #actions>
+        <button
+          v-if="store.trashTodos.length > 0"
+          @click="confirmClearAll = true"
+          class="btn-danger flex items-center gap-2 text-xs px-3 py-1.5"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+            />
+          </svg>
+          清空回收站
+        </button>
+      </template>
+    </PageHeader>
 
     <div class="flex-1 px-8 pb-6">
       <!-- Empty -->
-      <div
-        v-if="store.trashTodos.length === 0"
-        class="flex flex-col items-center justify-center h-64 text-content-tertiary"
-      >
-        <svg class="w-16 h-16 mb-4 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="1"
-            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-          />
-        </svg>
-        <p class="text-sm">回收站是空的</p>
-        <p class="text-xs mt-1">删除的待办事项会在这里保留 7 天</p>
-      </div>
+      <EmptyState v-if="store.trashTodos.length === 0" text="回收站是空的" hint="已删除的项目将在这里显示" icon="trash" />
 
       <!-- Trash list -->
       <div v-else class="space-y-2">
@@ -153,6 +136,8 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useAppStore } from '../stores/app'
+import PageHeader from '@/components/PageHeader.vue'
+import EmptyState from '@/components/EmptyState.vue'
 
 const store = useAppStore()
 const deletingTodo = ref(null)

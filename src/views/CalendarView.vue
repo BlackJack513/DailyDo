@@ -1,48 +1,45 @@
 <template>
   <div class="h-full flex flex-col">
-    <!-- Header -->
-    <div class="px-8 pt-6 pb-4 flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-bold text-content">日历视图</h1>
-        <p class="text-sm text-content-tertiary mt-0.5">查看每天的待办完成情况，管理工作日与休息日</p>
-      </div>
-      <div class="flex items-center gap-3">
-        <!-- Management mode toggle -->
-        <button
-          @click="isManageMode = !isManageMode"
-          class="px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5"
-          :class="
-            isManageMode
-              ? 'bg-primary text-white shadow-md shadow-primary/20'
-              : 'bg-surface-tertiary text-content-secondary hover:bg-surface-hover'
-          "
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-            />
-          </svg>
-          {{ isManageMode ? '完成管理' : '管理日历' }}
-        </button>
-        <!-- Month navigation -->
-        <button @click="prevMonth" class="p-2 rounded-lg hover:bg-surface-tertiary text-content-secondary">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-        <span class="text-lg font-semibold text-content min-w-[140px] text-center">
-          {{ currentYear }}年{{ currentMonth }}月
-        </span>
-        <button @click="nextMonth" class="p-2 rounded-lg hover:bg-surface-tertiary text-content-secondary">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
-      </div>
-    </div>
+    <PageHeader title="日历视图" subtitle="查看每天的待办完成情况，管理工作日与休息日">
+      <template #actions>
+        <div class="flex items-center gap-3">
+          <!-- Management mode toggle -->
+          <button
+            @click="isManageMode = !isManageMode"
+            class="px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5"
+            :class="
+              isManageMode
+                ? 'bg-primary text-white shadow-md shadow-primary/20'
+                : 'bg-surface-tertiary text-content-secondary hover:bg-surface-hover'
+            "
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+              />
+            </svg>
+            {{ isManageMode ? '完成管理' : '管理日历' }}
+          </button>
+          <!-- Month navigation -->
+          <button @click="prevMonth" class="p-2 rounded-lg hover:bg-surface-tertiary text-content-secondary">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <span class="text-lg font-semibold text-content min-w-[140px] text-center">
+            {{ currentYear }}年{{ currentMonth }}月
+          </span>
+          <button @click="nextMonth" class="p-2 rounded-lg hover:bg-surface-tertiary text-content-secondary">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+      </template>
+    </PageHeader>
 
     <!-- Manage mode hint -->
     <div
@@ -231,6 +228,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useAppStore } from '../stores/app'
 import * as db from '../utils/db'
+import PageHeader from '@/components/PageHeader.vue'
 
 const store = useAppStore()
 

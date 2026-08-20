@@ -1,18 +1,15 @@
 <template>
   <div class="h-full flex flex-col">
-    <!-- Header -->
-    <div class="px-8 pt-6 pb-4 flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-bold text-content">标签管理</h1>
-        <p class="text-sm text-content-tertiary mt-0.5">管理待办标签，预设标签不可删除</p>
-      </div>
-      <button @click="openAdd" class="btn-primary flex items-center gap-2">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-        </svg>
-        新建标签
-      </button>
-    </div>
+    <PageHeader title="标签管理" subtitle="管理待办标签，预设标签不可删除">
+      <template #actions>
+        <button @click="openAdd" class="btn-primary flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+          新建标签
+        </button>
+      </template>
+    </PageHeader>
 
     <!-- Tags Grid -->
     <div class="flex-1 px-8 pb-6 overflow-y-auto">
@@ -120,6 +117,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useAppStore } from '../stores/app'
+import PageHeader from '@/components/PageHeader.vue'
 
 const store = useAppStore()
 

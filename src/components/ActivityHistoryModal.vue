@@ -26,18 +26,7 @@
             <span class="ml-2 text-sm text-content-tertiary">加载中...</span>
           </div>
 
-          <div v-else-if="logs.length === 0" class="flex flex-col items-center justify-center py-12 text-content-tertiary">
-            <svg class="w-10 h-10 mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="1.5"
-                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-            <p class="text-sm">暂无历史记录</p>
-            <p class="text-xs mt-1">此待办创建时尚未启用历史追踪</p>
-          </div>
+          <EmptyState v-else-if="logs.length === 0" text="暂无活动记录" :large="false" />
 
           <div v-else class="relative">
             <!-- Vertical line -->
@@ -80,6 +69,7 @@
 <script setup>
 import { ref, watch } from 'vue'
 import * as db from '../utils/db'
+import EmptyState from '@/components/EmptyState.vue'
 
 const props = defineProps({
   show: { type: Boolean, default: false },

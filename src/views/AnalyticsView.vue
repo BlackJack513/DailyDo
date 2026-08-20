@@ -1,27 +1,24 @@
 <template>
   <div class="h-full flex flex-col overflow-y-auto">
-    <!-- Header -->
-    <div class="px-8 pt-6 pb-4 flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-bold text-content">统计分析</h1>
-        <p class="text-sm text-content-tertiary mt-0.5">了解你的工作效率和任务分布</p>
-      </div>
-      <div class="flex gap-2">
-        <button
-          v-for="range in timeRanges"
-          :key="range.value"
-          @click="selectedRange = range.value"
-          class="px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors"
-          :class="
-            selectedRange === range.value
-              ? 'border-primary bg-primary/10 text-primary'
-              : 'border-border text-content-tertiary hover:border-content-tertiary'
-          "
-        >
-          {{ range.label }}
-        </button>
-      </div>
-    </div>
+    <PageHeader title="统计分析" subtitle="了解你的工作效率和任务分布">
+      <template #actions>
+        <div class="flex gap-2">
+          <button
+            v-for="range in timeRanges"
+            :key="range.value"
+            @click="selectedRange = range.value"
+            class="px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors"
+            :class="
+              selectedRange === range.value
+                ? 'border-primary bg-primary/10 text-primary'
+                : 'border-border text-content-tertiary hover:border-content-tertiary'
+            "
+          >
+            {{ range.label }}
+          </button>
+        </div>
+      </template>
+    </PageHeader>
 
     <!-- Stats Cards -->
     <div class="px-8 pb-6 grid grid-cols-4 gap-4">
@@ -68,6 +65,7 @@
 import { ref, computed, onMounted, watch, onBeforeUnmount, nextTick } from 'vue'
 import { useAppStore } from '../stores/app'
 import * as echarts from 'echarts'
+import PageHeader from '@/components/PageHeader.vue'
 
 const store = useAppStore()
 

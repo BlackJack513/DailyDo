@@ -1,14 +1,10 @@
 <template>
   <div class="h-full flex flex-col">
-    <!-- Header -->
-    <div class="px-8 pt-6 pb-4 flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-bold text-content">待办列表</h1>
-        <p class="text-sm text-content-tertiary mt-0.5">
-          {{ pendingTodos.length }} 待处理 · {{ inProgressTodos.length }} 进行中 · {{ blockedTodos.length }} 等待中 · {{ doneTodos.length }} 已完成
-        </p>
-      </div>
-      <div class="flex items-center gap-2">
+    <PageHeader
+      title="待办列表"
+      :subtitle="`${pendingTodos.length} 待处理 · ${inProgressTodos.length} 进行中 · ${blockedTodos.length} 等待中 · ${doneTodos.length} 已完成`"
+    >
+      <template #actions>
         <button @click="openTemplatePicker" class="btn-secondary flex items-center gap-2">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
@@ -26,8 +22,8 @@
           </svg>
           新建待办
         </button>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <!-- Quick Add -->
     <div class="px-8 pb-4">
@@ -177,21 +173,11 @@
       </div>
 
       <!-- Empty -->
-      <div
+      <EmptyState
         v-if="store.currentTodos.length === 0 && historicalGroups.length === 0"
-        class="flex flex-col items-center justify-center h-64 text-content-tertiary"
-      >
-        <svg class="w-16 h-16 mb-4 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="1"
-            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-          />
-        </svg>
-        <p class="text-sm">还没有待办事项</p>
-        <p class="text-xs mt-1">点击上方按钮或快速添加开始记录</p>
-      </div>
+        text="今天还没有待办"
+        hint="使用上方输入框快速添加，或点击「新建待办」创建"
+      />
     </div>
 
     <!-- Compact List (narrow screen) -->
@@ -247,20 +233,11 @@
       </div>
 
       <!-- Empty -->
-      <div
+      <EmptyState
         v-if="store.currentTodos.length === 0 && historicalGroups.length === 0"
-        class="flex flex-col items-center justify-center h-64 text-content-tertiary"
-      >
-        <svg class="w-16 h-16 mb-4 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="1"
-            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-          />
-        </svg>
-        <p class="text-sm">还没有待办事项</p>
-      </div>
+        text="今天还没有待办"
+        hint="使用上方输入框快速添加，或点击「新建待办」创建"
+      />
     </div>
 
     <!-- Add/Edit Modal -->
@@ -612,6 +589,8 @@ import TodoDetailModal from '../components/TodoDetailModal.vue'
 import KanbanColumn from '../components/KanbanColumn.vue'
 import CompactTodoItem from '../components/CompactTodoItem.vue'
 import ActivityHistoryModal from '../components/ActivityHistoryModal.vue'
+import PageHeader from '@/components/PageHeader.vue'
+import EmptyState from '@/components/EmptyState.vue'
 
 // ─── 共享工具导入 ─────────────────────────────────────────────
 // 统一使用 helpers.js 中的函数，消除本文件中的重复定义

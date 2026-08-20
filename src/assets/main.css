@@ -562,6 +562,37 @@
   .status-dot {
     @apply w-2.5 h-2.5 rounded-full flex-shrink-0;
   }
+
+  /* ─ Page Typography ── */
+  .page-title {
+    @apply text-2xl font-bold text-content;
+  }
+
+  .page-subtitle {
+    @apply text-sm text-content-tertiary mt-0.5;
+  }
+
+  .section-title {
+    @apply text-sm font-semibold text-content;
+  }
+
+  .section-subtitle {
+    @apply text-xs text-content-tertiary mt-0.5;
+  }
+
+  /* ── Empty State ── */
+  .empty-state {
+    @apply flex flex-col items-center justify-center py-16 text-content-tertiary;
+  }
+  .empty-state-icon {
+    @apply mb-4 opacity-30;
+  }
+  .empty-state-text {
+    @apply text-sm font-medium mb-1;
+  }
+  .empty-state-hint {
+    @apply text-xs;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════

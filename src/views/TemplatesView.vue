@@ -13,40 +13,25 @@
 -->
 <template>
   <div class="flex-1 flex flex-col h-full bg-surface-secondary bg-body">
-    <!-- Header -->
-    <div class="px-6 py-5 border-b border-border bg-surface">
-      <div class="flex items-center justify-between">
-        <div>
-          <h1 class="text-xl font-bold text-content">待办模板</h1>
-          <p class="text-sm text-content-tertiary mt-1">管理常用待办模板，快速创建相似任务</p>
-        </div>
+    <PageHeader title="待办模板" subtitle="管理常用待办模板，快速创建相似任务" bordered>
+      <template #actions>
         <button @click="openCreateModal" class="btn-primary flex items-center gap-2">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
           </svg>
           新建模板
         </button>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <!-- Content -->
     <div class="flex-1 overflow-y-auto p-6">
       <!-- Empty state -->
-      <div
+      <EmptyState
         v-if="templates.length === 0 && !loading"
-        class="flex flex-col items-center justify-center py-20 text-content-tertiary"
-      >
-        <svg class="w-16 h-16 mb-4 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="1.5"
-            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-          />
-        </svg>
-        <p class="text-lg font-medium mb-1">暂无模板</p>
-        <p class="text-sm">点击上方按钮创建第一个待办模板</p>
-      </div>
+        text="暂无模板"
+        hint="点击上方按钮创建第一个待办模板"
+      />
 
       <!-- Template cards -->
       <div v-else class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -95,9 +80,7 @@
 
           <!-- Meta info: priority + recurrence -->
           <div class="flex flex-wrap gap-2 mb-3">
-            <span class="text-xs px-2 py-0.5 rounded-full font-medium" :class="priorityClass(tpl.priority)">
-              {{ priorityLabel(tpl.priority) }}
-            </span>
+            <PriorityBadge :priority="tpl.priority" />
             <span
               v-if="tpl.recurrence_type && tpl.recurrence_type !== 'none'"
               class="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 text-blue-400 font-medium"
@@ -433,13 +416,14 @@ import { templateService } from '../services/templateService'
 import {
   PRIORITIES,
   RECURRENCE_OPTIONS,
-  priorityClass,
-  priorityLabel,
   recurrenceLabel,
   safeJsonParseArray,
   getLockedFieldLabels,
   parseEnumValues,
 } from '../utils/helpers'
+import PageHeader from '@/components/PageHeader.vue'
+import PriorityBadge from '@/components/PriorityBadge.vue'
+import EmptyState from '@/components/EmptyState.vue'
 
 const store = useAppStore()
 

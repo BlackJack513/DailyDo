@@ -1,10 +1,6 @@
 <template>
   <div class="h-full flex flex-col overflow-y-auto">
-    <!-- Header -->
-    <div class="px-8 pt-6 pb-4">
-      <h1 class="text-2xl font-bold text-content">设置</h1>
-      <p class="text-sm text-content-tertiary mt-0.5">管理应用设置和数据</p>
-    </div>
+    <PageHeader title="设置" subtitle="管理应用设置和数据" />
 
     <div class="flex-1 px-8 pb-6 space-y-6">
       <!-- Theme -->
@@ -293,6 +289,7 @@ import { open } from '@tauri-apps/api/dialog'
 import { writeBinaryFile, readBinaryFile } from '@tauri-apps/api/fs'
 import { join } from '@tauri-apps/api/path'
 import { appWindow } from '@tauri-apps/api/window'
+import PageHeader from '@/components/PageHeader.vue'
 
 const store = useAppStore()
 
