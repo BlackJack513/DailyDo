@@ -683,6 +683,19 @@
   border-color: rgba(var(--color-divider), 0.4);
 }
 
+/* Modal/dialog content must stay opaque for readability */
+.has-bg-image .fixed .bg-surface,
+.has-bg-image .fixed .bg-surface-secondary,
+.has-bg-image .fixed .bg-surface-tertiary,
+.has-bg-image .fixed .card {
+  background-color: rgb(var(--color-surface));
+  backdrop-filter: none;
+}
+
+.has-bg-image .fixed .input-field {
+  background-color: rgba(var(--color-surface), 0.85);
+}
+
 /* ═══════════════════════════════════════════════════════
    Mini mode adjustments
    ═══════════════════════════════════════════════════════ */
