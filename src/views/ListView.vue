@@ -429,7 +429,8 @@ async function handleSubmit(data) {
 async function handleToggleStatus(todo) {
   const nextStatus = todo.status === 'pending' ? 'in_progress' : todo.status === 'in_progress' ? 'blocked' : todo.status === 'blocked' ? 'done' : 'pending'
   try {
-    await store.updateTodo({ ...todo, status: nextStatus })
+    const { steps, ...rest } = todo
+    await store.updateTodo({ ...rest, status: nextStatus })
     await loadData()
   } catch (e) {
     console.error('Failed to toggle status:', e)

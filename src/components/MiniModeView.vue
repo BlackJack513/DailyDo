@@ -299,7 +299,8 @@ function priorityColor(p) {
 
 async function handleToggle(todo) {
   const nextStatus = todo.status === 'pending' ? 'in_progress' : todo.status === 'in_progress' ? 'done' : 'pending'
-  await store.updateTodo({ ...todo, status: nextStatus })
+  const { steps, ...rest } = todo
+  await store.updateTodo({ ...rest, status: nextStatus })
 }
 
 function toggleTag(tagId) {

@@ -705,7 +705,8 @@ async function handleToggle(todo) {
 async function handleDrop({ todoId, newStatus }) {
   const todo = store.currentTodos.find(t => t.id === todoId)
   if (!todo || todo.status === newStatus) return
-  await store.updateTodo({ ...todo, status: newStatus })
+  const { steps, ...rest } = todo
+  await store.updateTodo({ ...rest, status: newStatus })
   await store.loadOverviewStats()
   await store.loadIncompleteTodos()
 }
