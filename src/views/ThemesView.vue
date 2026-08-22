@@ -1,6 +1,6 @@
 <template>
   <div class="h-full flex flex-col">
-    <PageHeader title="主题管理" subtitle="创建和管理自定义主题配色方案">
+    <PageHeader title="主题管理" subtitle="选择和管理主题配色方案">
       <template #actions>
         <button @click="openAdd" class="btn-primary flex items-center gap-2">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -11,66 +11,141 @@
       </template>
     </PageHeader>
 
-    <!-- Custom Themes Grid -->
-    <div class="flex-1 px-8 pb-6 overflow-y-auto">
-      <div v-if="store.customThemes.length === 0" class="text-center py-16 text-content-tertiary">
-        <svg class="w-16 h-16 mx-auto mb-4 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
-        </svg>
-        <p class="text-sm">还没有自定义主题</p>
-        <p class="text-xs mt-1">点击上方按钮创建你的第一个自定义主题</p>
-      </div>
-      <div v-else class="grid grid-cols-2 gap-4">
-        <div
-          v-for="theme in store.customThemes"
-          :key="theme.id"
-          class="card group relative"
-        >
-          <!-- Preview bar -->
-          <div class="h-16 rounded-lg mb-3 flex items-end justify-between p-3 border border-border" :style="previewStyle(theme)">
-            <span class="text-xs font-medium" :style="{ color: previewText(theme) }">{{ theme.name }}</span>
-            <div class="flex gap-1">
-              <span v-for="v in previewSwatches(theme)" :key="v" class="w-3 h-3 rounded-full border border-black/10" :style="{ backgroundColor: v }"></span>
+    <div class="flex-1 px-8 pb-6 overflow-y-auto space-y-6">
+      <!-- Preset Themes -->
+      <div>
+        <h3 class="text-sm font-semibold text-content mb-3">预设主题</h3>
+        <div class="grid grid-cols-2 gap-4">
+          <div
+            v-for="theme in store.themes"
+            :key="theme.id"
+            class="card group relative"
+          >
+            <!-- Preview bar -->
+            <div class="h-16 rounded-lg mb-3 flex items-end justify-between p-3 border border-border" :style="{ backgroundColor: theme.color + '15' }">
+              <span class="text-xs font-medium" :style="{ color: theme.color }">{{ theme.name }}</span>
+              <div class="flex gap-1">
+                <span class="w-3 h-3 rounded-full border border-black/10" :style="{ backgroundColor: theme.color }"></span>
+              </div>
+            </div>
+            <!-- Info & actions -->
+            <div class="flex items-center justify-between">
+              <div>
+                <h4 class="text-sm font-medium text-content">{{ theme.name }}</h4>
+                <p class="text-xs text-content-tertiary mt-0.5">系统预设</p>
+              </div>
+              <div class="flex items-center gap-1">
+                <!-- Favorite toggle -->
+                <button
+                  @click.stop="store.toggleFavorite(theme.id)"
+                  class="p-1.5 rounded-lg transition-colors"
+                  :class="store.isFavorite(theme.id) ? 'text-amber-400 hover:text-amber-500' : 'text-content-tertiary/40 hover:text-content-tertiary opacity-0 group-hover:opacity-100'"
+                  :title="store.isFavorite(theme.id) ? '取消收藏' : '收藏到侧边栏'"
+                >
+                  <svg v-if="store.isFavorite(theme.id)" class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.293z"/>
+                  </svg>
+                  <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z"/>
+                  </svg>
+                </button>
+                <!-- Apply button -->
+                <button
+                  v-if="store.theme !== theme.id"
+                  @click="applyPresetTheme(theme.id)"
+                  class="px-2.5 py-1 rounded-lg text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors opacity-0 group-hover:opacity-100"
+                >
+                  应用
+                </button>
+                <span
+                  v-else
+                  class="px-2.5 py-1 rounded-lg text-xs font-medium bg-primary text-white"
+                >
+                  使用中
+                </span>
+              </div>
             </div>
           </div>
-          <!-- Info & actions -->
-          <div class="flex items-center justify-between">
-            <div>
-              <h4 class="text-sm font-medium text-content">{{ theme.name }}</h4>
-              <p class="text-xs text-content-tertiary mt-0.5">
-                {{ formatDate(theme.created_at) }}
-              </p>
+        </div>
+      </div>
+
+      <!-- Custom Themes -->
+      <div>
+        <h3 class="text-sm font-semibold text-content mb-3">自定义主题</h3>
+        <div v-if="store.customThemes.length === 0" class="text-center py-12 text-content-tertiary">
+          <svg class="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+          </svg>
+          <p class="text-sm">还没有自定义主题</p>
+          <p class="text-xs mt-1">点击上方按钮创建你的第一个自定义主题</p>
+        </div>
+        <div v-else class="grid grid-cols-2 gap-4">
+          <div
+            v-for="theme in store.customThemes"
+            :key="theme.id"
+            class="card group relative"
+          >
+            <!-- Preview bar -->
+            <div class="h-16 rounded-lg mb-3 flex items-end justify-between p-3 border border-border" :style="previewStyle(theme)">
+              <span class="text-xs font-medium" :style="{ color: previewText(theme) }">{{ theme.name }}</span>
+              <div class="flex gap-1">
+                <span v-for="v in previewSwatches(theme)" :key="v" class="w-3 h-3 rounded-full border border-black/10" :style="{ backgroundColor: v }"></span>
+              </div>
             </div>
-            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button
-                v-if="store.theme !== 'custom_' + theme.id"
-                @click="applyTheme(theme)"
-                class="px-2.5 py-1 rounded-lg text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-              >
-                应用
-              </button>
-              <span
-                v-else
-                class="px-2.5 py-1 rounded-lg text-xs font-medium bg-primary text-white"
-              >
-                使用中
-              </span>
-              <button
-                @click="openEdit(theme)"
-                class="p-1.5 rounded-lg hover:bg-surface-tertiary text-content-tertiary hover:text-content"
-              >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-              </button>
-              <button
-                @click="handleDelete(theme)"
-                class="p-1.5 rounded-lg hover:bg-red-50/20 text-content-tertiary hover:text-red-500"
-              >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </button>
+            <!-- Info & actions -->
+            <div class="flex items-center justify-between">
+              <div>
+                <h4 class="text-sm font-medium text-content">{{ theme.name }}</h4>
+                <p class="text-xs text-content-tertiary mt-0.5">
+                  {{ formatDate(theme.created_at) }}
+                </p>
+              </div>
+              <div class="flex items-center gap-1">
+                <!-- Favorite toggle -->
+                <button
+                  @click.stop="store.toggleFavorite('custom_' + theme.id)"
+                  class="p-1.5 rounded-lg transition-colors"
+                  :class="store.isFavorite('custom_' + theme.id) ? 'text-amber-400 hover:text-amber-500' : 'text-content-tertiary/40 hover:text-content-tertiary opacity-0 group-hover:opacity-100'"
+                  :title="store.isFavorite('custom_' + theme.id) ? '取消收藏' : '收藏到侧边栏'"
+                >
+                  <svg v-if="store.isFavorite('custom_' + theme.id)" class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.293z"/>
+                  </svg>
+                  <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z"/>
+                  </svg>
+                </button>
+                <!-- Apply / Edit / Delete -->
+                <button
+                  v-if="store.theme !== 'custom_' + theme.id"
+                  @click="applyTheme(theme)"
+                  class="px-2.5 py-1 rounded-lg text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors opacity-0 group-hover:opacity-100"
+                >
+                  应用
+                </button>
+                <span
+                  v-else
+                  class="px-2.5 py-1 rounded-lg text-xs font-medium bg-primary text-white"
+                >
+                  使用中
+                </span>
+                <button
+                  @click="openEdit(theme)"
+                  class="p-1.5 rounded-lg hover:bg-surface-tertiary text-content-tertiary hover:text-content opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                </button>
+                <button
+                  @click="handleDelete(theme)"
+                  class="p-1.5 rounded-lg hover:bg-red-50/20 text-content-tertiary hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -353,6 +428,10 @@ async function handleSave() {
     css_variables: cssVariables,
   })
   closeModal()
+}
+
+async function applyPresetTheme(themeId) {
+  await store.setTheme(themeId)
 }
 
 async function applyTheme(theme) {
