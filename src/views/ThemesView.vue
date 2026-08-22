@@ -2,12 +2,26 @@
   <div class="h-full flex flex-col">
     <PageHeader title="主题管理" subtitle="选择和管理主题配色方案">
       <template #actions>
-        <button @click="openAdd" class="btn-primary flex items-center gap-2">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-          </svg>
-          新建主题
-        </button>
+        <div class="flex items-center gap-2">
+          <button @click="openExport" class="btn-secondary flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            导出
+          </button>
+          <button @click="openImport" class="btn-secondary flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+            </svg>
+            导入
+          </button>
+          <button @click="openAdd" class="btn-primary flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            新建主题
+          </button>
+        </div>
       </template>
     </PageHeader>
 
@@ -246,11 +260,125 @@
         </div>
       </div>
     </div>
+
+    <!-- Export Modal -->
+    <div v-if="showExportModal" class="fixed inset-0 z-50 flex items-center justify-center">
+      <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="showExportModal = false"></div>
+      <div class="relative w-[480px] max-h-[70vh] bg-surface rounded-2xl shadow-2xl border border-border flex flex-col overflow-hidden">
+        <div class="px-6 py-4 border-b border-border flex-shrink-0">
+          <h3 class="text-lg font-semibold text-content">导出主题</h3>
+          <p class="text-xs text-content-tertiary mt-1">选择要导出的主题，导出为 JSON 文件供其他用户导入使用</p>
+        </div>
+        <div class="flex-1 overflow-y-auto p-4 space-y-1">
+          <label
+            v-for="theme in exportableThemes"
+            :key="theme.exportKey"
+            class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-surface-tertiary cursor-pointer transition-colors"
+          >
+            <input
+              type="checkbox"
+              :checked="selectedExports.has(theme.exportKey)"
+              @change="toggleExport(theme.exportKey)"
+              class="w-4 h-4 rounded border-border text-primary focus:ring-primary/50 accent-indigo-500"
+            />
+            <span
+              class="w-6 h-6 rounded-full border border-black/10 flex-shrink-0"
+              :style="{ backgroundColor: theme.color }"
+            ></span>
+            <div class="flex-1 min-w-0">
+              <span class="text-sm text-content">{{ theme.name }}</span>
+              <span class="ml-2 text-xs text-content-tertiary">
+                {{ theme.isCustom ? '自定义' : '预设' }}
+              </span>
+            </div>
+          </label>
+        </div>
+        <div class="px-6 py-4 border-t border-border flex justify-between items-center flex-shrink-0">
+          <span class="text-xs text-content-tertiary">已选择 {{ selectedExports.size }} 个主题</span>
+          <div class="flex gap-3">
+            <button @click="showExportModal = false" class="btn-secondary">取消</button>
+            <button
+              @click="doExport"
+              class="btn-primary"
+              :disabled="selectedExports.size === 0"
+            >
+              导出
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Import Modal -->
+    <div v-if="showImportModal" class="fixed inset-0 z-50 flex items-center justify-center">
+      <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="closeImportModal"></div>
+      <div class="relative w-[480px] max-h-[70vh] bg-surface rounded-2xl shadow-2xl border border-border flex flex-col overflow-hidden">
+        <div class="px-6 py-4 border-b border-border flex-shrink-0">
+          <h3 class="text-lg font-semibold text-content">导入主题</h3>
+          <p class="text-xs text-content-tertiary mt-1">选择 JSON 主题文件，导入后主题将保存为自定义主题</p>
+        </div>
+        <div class="flex-1 overflow-y-auto p-4">
+          <!-- No file selected yet -->
+          <div v-if="!parsedImportData" class="space-y-3">
+            <button
+              @click="triggerFileSelect"
+              class="w-full border-2 border-dashed border-border rounded-xl py-10 flex flex-col items-center gap-3 hover:border-primary/40 hover:bg-primary/5 transition-all cursor-pointer"
+            >
+              <svg class="w-10 h-10 text-content-tertiary/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <span class="text-sm text-content-tertiary">点击选择 JSON 主题文件</span>
+            </button>
+            <input ref="fileInput" type="file" accept=".json" @change="handleFileSelected" class="hidden" />
+            <p v-if="importError" class="text-xs text-red-500 text-center">{{ importError }}</p>
+          </div>
+          <!-- File parsed, show themes -->
+          <div v-else class="space-y-1">
+            <div class="text-xs text-content-tertiary mb-2 px-1">
+              从「{{ importFileName }}」中解析到 {{ parsedImportData.themes.length }} 个主题
+            </div>
+            <label
+              v-for="(theme, idx) in importedThemes"
+              :key="theme.importId"
+              class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-surface-tertiary cursor-pointer transition-colors"
+            >
+              <input
+                type="checkbox"
+                :checked="selectedImports.has(idx)"
+                @change="toggleImport(idx)"
+                class="w-4 h-4 rounded border-border text-primary focus:ring-primary/50 accent-indigo-500"
+              />
+              <span
+                class="w-6 h-6 rounded-full border border-black/10 flex-shrink-0"
+                :style="{ backgroundColor: theme.color }"
+              ></span>
+              <div class="flex-1 min-w-0">
+                <span class="text-sm text-content">{{ theme.name }}</span>
+                <span v-if="theme.hasConflict" class="ml-2 text-xs text-amber-500">已存在同名主题</span>
+              </div>
+            </label>
+          </div>
+        </div>
+        <div v-if="parsedImportData" class="px-6 py-4 border-t border-border flex justify-between items-center flex-shrink-0">
+          <span class="text-xs text-content-tertiary">已选择 {{ selectedImports.size }} 个主题</span>
+          <div class="flex gap-3">
+            <button @click="closeImportModal" class="btn-secondary">取消</button>
+            <button
+              @click="doImport"
+              class="btn-primary"
+              :disabled="selectedImports.size === 0"
+            >
+              导入
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick } from 'vue'
 import { useAppStore } from '../stores/app'
 import PageHeader from '@/components/PageHeader.vue'
 
@@ -307,6 +435,60 @@ const colorGroups = [
 ]
 
 const allColorVars = colorGroups.flatMap(g => g.vars)
+
+// ── Preset theme CSS variables (from main.css, for export) ────
+const presetThemeVars = {
+  light: {
+    '--color-body': '248 250 252', '--color-surface': '255 255 255',
+    '--color-surface-2': '241 245 249', '--color-surface-3': '226 232 240',
+    '--color-sidebar': '248 250 252', '--color-control': '203 213 225',
+    '--color-surface-hover': '226 232 240', '--color-content': '15 23 42',
+    '--color-content-sec': '71 85 105', '--color-muted': '148 163 184',
+    '--color-divider': '226 232 240', '--color-primary': '99 102 241',
+    '--color-primary-hover': '79 70 229', '--color-primary-light': '224 231 255',
+    '--badge-bg': '99 102 241', '--badge-text': '255 255 255',
+  },
+  dark: {
+    '--color-body': '17 24 39', '--color-surface': '31 41 55',
+    '--color-surface-2': '55 65 81', '--color-surface-3': '75 85 99',
+    '--color-sidebar': '26 34 50', '--color-control': '75 85 99',
+    '--color-surface-hover': '55 65 81', '--color-content': '243 244 246',
+    '--color-content-sec': '209 213 219', '--color-muted': '156 163 175',
+    '--color-divider': '55 65 81', '--color-primary': '129 140 248',
+    '--color-primary-hover': '99 102 241', '--color-primary-light': '49 46 129',
+    '--badge-bg': '129 140 248', '--badge-text': '17 24 39',
+  },
+  ocean: {
+    '--color-body': '240 249 255', '--color-surface': '255 255 255',
+    '--color-surface-2': '224 242 254', '--color-surface-3': '186 230 253',
+    '--color-sidebar': '235 248 255', '--color-control': '165 215 245',
+    '--color-surface-hover': '200 238 253', '--color-content': '10 40 60',
+    '--color-content-sec': '40 90 120', '--color-muted': '120 170 200',
+    '--color-divider': '186 230 253', '--color-primary': '14 165 233',
+    '--color-primary-hover': '2 132 199', '--color-primary-light': '200 240 255',
+    '--badge-bg': '14 165 233', '--badge-text': '255 255 255',
+  },
+  claude: {
+    '--color-body': '250 249 245', '--color-surface': '255 255 255',
+    '--color-surface-2': '244 243 238', '--color-surface-3': '236 233 223',
+    '--color-sidebar': '250 249 245', '--color-control': '215 210 200',
+    '--color-surface-hover': '236 233 223', '--color-content': '25 25 25',
+    '--color-content-sec': '80 80 80', '--color-muted': '155 150 140',
+    '--color-divider': '236 233 223', '--color-primary': '193 95 60',
+    '--color-primary-hover': '160 75 45', '--color-primary-light': '245 235 225',
+    '--badge-bg': '193 95 60', '--badge-text': '255 255 255',
+  },
+  frost: {
+    '--color-body': '240 244 248', '--color-surface': '255 255 255',
+    '--color-surface-2': '225 232 240', '--color-surface-3': '208 218 230',
+    '--color-sidebar': '235 240 246', '--color-control': '190 202 216',
+    '--color-surface-hover': '215 224 235', '--color-content': '35 48 65',
+    '--color-content-sec': '65 80 100', '--color-muted': '140 155 172',
+    '--color-divider': '208 218 230', '--color-primary': '70 130 195',
+    '--color-primary-hover': '52 110 175', '--color-primary-light': '215 230 248',
+    '--badge-bg': '70 130 195', '--badge-text': '255 255 255',
+  },
+}
 
 // ── Default theme values (based on light theme) ─────────────
 const defaultVars = {
@@ -452,6 +634,175 @@ function formatDate(dateStr) {
   } catch {
     return dateStr.substring(0, 10)
   }
+}
+
+// ── Export / Import ───────────────────────────────────────────
+const showExportModal = ref(false)
+const selectedExports = ref(new Set())
+
+const showImportModal = ref(false)
+const parsedImportData = ref(null)
+const selectedImports = ref(new Set())
+const importFileName = ref('')
+const importError = ref('')
+const fileInput = ref(null)
+const importIdBase = ref(Date.now())
+
+const exportableThemes = computed(() => {
+  const presets = store.themes.map(t => ({
+    exportKey: `preset_${t.id}`,
+    name: t.name,
+    color: t.color,
+    isCustom: false,
+    themeId: t.id,
+  }))
+  const customs = store.customThemes.map(t => {
+    let color = '#6366f1'
+    try {
+      const vars = JSON.parse(t.css_variables || '{}')
+      if (vars['--color-primary']) {
+        const parts = vars['--color-primary'].split(/\s+/)
+        if (parts.length >= 3) {
+          const toHex = v => Math.min(255, Math.max(0, parseInt(v, 10) || 0)).toString(16).padStart(2, '0')
+          color = '#' + toHex(parts[0]) + toHex(parts[1]) + toHex(parts[2])
+        }
+      }
+    } catch { /* default */ }
+    return {
+      exportKey: `custom_${t.id}`,
+      name: t.name,
+      color,
+      isCustom: true,
+      themeId: t.id,
+    }
+  })
+  return [...presets, ...customs]
+})
+
+const importedThemes = computed(() => {
+  if (!parsedImportData.value) return []
+  return parsedImportData.value.themes.map((t, idx) => {
+    let color = '#6366f1'
+    try {
+      const vars = typeof t.css_variables === 'string' ? JSON.parse(t.css_variables) : (t.css_variables || {})
+      if (vars['--color-primary']) {
+        const parts = vars['--color-primary'].split(/\s+/)
+        if (parts.length >= 3) {
+          const toHex = v => Math.min(255, Math.max(0, parseInt(v, 10) || 0)).toString(16).padStart(2, '0')
+          color = '#' + toHex(parts[0]) + toHex(parts[1]) + toHex(parts[2])
+        }
+      }
+    } catch { /* default */ }
+    const existingNames = store.customThemes.map(ct => ct.name)
+    return {
+      importId: `imp_${importIdBase.value}_${idx}`,
+      name: t.name,
+      color,
+      css_variables: typeof t.css_variables === 'string' ? t.css_variables : JSON.stringify(t.css_variables || {}),
+      hasConflict: existingNames.includes(t.name),
+    }
+  })
+})
+
+function toggleExport(key) {
+  const s = new Set(selectedExports.value)
+  if (s.has(key)) s.delete(key); else s.add(key)
+  selectedExports.value = s
+}
+
+function openExport() {
+  selectedExports.value = new Set()
+  showExportModal.value = true
+}
+
+function doExport() {
+  const themes = []
+  for (const key of selectedExports.value) {
+    const item = exportableThemes.value.find(t => t.exportKey === key)
+    if (!item) continue
+    let cssVars
+    if (item.isCustom) {
+      const ct = store.customThemes.find(t => t.id === item.themeId)
+      cssVars = ct ? JSON.parse(ct.css_variables) : {}
+    } else {
+      cssVars = { ...presetThemeVars[item.themeId] }
+    }
+    themes.push({ name: item.name, type: item.isCustom ? 'custom' : 'preset', css_variables: cssVars })
+  }
+  const data = {
+    version: 1,
+    app: 'DailyDo',
+    exported_at: new Date().toISOString(),
+    themes,
+  }
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `dailydo-themes-${new Date().toISOString().slice(0, 10)}.json`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+  showExportModal.value = false
+}
+
+function openImport() {
+  parsedImportData.value = null
+  selectedImports.value = new Set()
+  importFileName.value = ''
+  importError.value = ''
+  importIdBase.value = Date.now()
+  showImportModal.value = true
+}
+
+function triggerFileSelect() {
+  if (fileInput.value) {
+    fileInput.value.value = ''
+    fileInput.value.click()
+  }
+}
+
+async function handleFileSelected(event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+  importFileName.value = file.name
+  importError.value = ''
+  try {
+    const text = await file.text()
+    const data = JSON.parse(text)
+    if (!data.themes || !Array.isArray(data.themes) || data.themes.length === 0) {
+      importError.value = '文件格式错误：未找到主题数据'
+      return
+    }
+    parsedImportData.value = data
+    selectedImports.value = new Set(data.themes.map((_, i) => i))
+  } catch (e) {
+    importError.value = '文件解析失败：' + (e.message || '无效的 JSON 文件')
+  }
+}
+
+function toggleImport(idx) {
+  const s = new Set(selectedImports.value)
+  if (s.has(idx)) s.delete(idx); else s.add(idx)
+  selectedImports.value = s
+}
+
+async function doImport() {
+  if (!parsedImportData.value) return
+  for (const idx of selectedImports.value) {
+    const t = parsedImportData.value.themes[idx]
+    if (!t) continue
+    const cssVars = typeof t.css_variables === 'string' ? t.css_variables : JSON.stringify(t.css_variables || {})
+    await store.saveCustomTheme({ id: null, name: t.name, css_variables: cssVars })
+  }
+  await store.loadCustomThemes()
+  showImportModal.value = false
+}
+
+function closeImportModal() {
+  showImportModal.value = false
+  parsedImportData.value = null
 }
 
 onMounted(() => {
