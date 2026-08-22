@@ -63,6 +63,19 @@
                     <path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z"/>
                   </svg>
                 </button>
+                <!-- Copy JSON -->
+                <button
+                  @click.stop="copyThemeJson(theme.id, theme.name, false)"
+                  class="p-1.5 rounded-lg hover:bg-surface-tertiary text-content-tertiary hover:text-content opacity-0 group-hover:opacity-100 transition-opacity"
+                  :title="copiedThemeId === theme.id ? '已复制!' : '复制 JSON'"
+                >
+                  <svg v-if="copiedThemeId === theme.id" class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </button>
                 <!-- Apply button -->
                 <button
                   v-if="store.theme !== theme.id"
@@ -143,6 +156,19 @@
                 >
                   使用中
                 </span>
+                <!-- Copy JSON -->
+                <button
+                  @click.stop="copyThemeJson(theme.id, theme.name, true)"
+                  class="p-1.5 rounded-lg hover:bg-surface-tertiary text-content-tertiary hover:text-content opacity-0 group-hover:opacity-100 transition-opacity"
+                  :title="copiedThemeId === 'custom_' + theme.id ? '已复制!' : '复制 JSON'"
+                >
+                  <svg v-if="copiedThemeId === 'custom_' + theme.id" class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </button>
                 <button
                   @click="openEdit(theme)"
                   class="p-1.5 rounded-lg hover:bg-surface-tertiary text-content-tertiary hover:text-content opacity-0 group-hover:opacity-100 transition-opacity"
@@ -315,58 +341,105 @@
       <div class="relative w-[480px] max-h-[70vh] bg-surface rounded-2xl shadow-2xl border border-border flex flex-col overflow-hidden">
         <div class="px-6 py-4 border-b border-border flex-shrink-0">
           <h3 class="text-lg font-semibold text-content">导入主题</h3>
-          <p class="text-xs text-content-tertiary mt-1">选择 JSON 主题文件，导入后主题将保存为自定义主题</p>
+          <p class="text-xs text-content-tertiary mt-1">通过文件导入或粘贴 JSON 导入自定义主题</p>
+          <!-- Tabs -->
+          <div class="flex gap-1 mt-3 bg-surface-secondary rounded-lg p-0.5">
+            <button
+              @click="importTab = 'file'"
+              class="flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors"
+              :class="importTab === 'file' ? 'bg-surface text-content shadow-sm' : 'text-content-tertiary hover:text-content'"
+            >
+              文件导入
+            </button>
+            <button
+              @click="importTab = 'paste'"
+              class="flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors"
+              :class="importTab === 'paste' ? 'bg-surface text-content shadow-sm' : 'text-content-tertiary hover:text-content'"
+            >
+              粘贴导入
+            </button>
+          </div>
         </div>
         <div class="flex-1 overflow-y-auto p-4">
-          <!-- No file selected yet -->
-          <div v-if="!parsedImportData" class="space-y-3">
-            <button
-              @click="triggerFileSelect"
-              class="w-full border-2 border-dashed border-border rounded-xl py-10 flex flex-col items-center gap-3 hover:border-primary/40 hover:bg-primary/5 transition-all cursor-pointer"
-            >
-              <svg class="w-10 h-10 text-content-tertiary/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <span class="text-sm text-content-tertiary">点击选择 JSON 主题文件</span>
-            </button>
-            <input ref="fileInput" type="file" accept=".json" @change="handleFileSelected" class="hidden" />
-            <p v-if="importError" class="text-xs text-red-500 text-center">{{ importError }}</p>
-          </div>
-          <!-- File parsed, show themes -->
-          <div v-else class="space-y-1">
-            <div class="text-xs text-content-tertiary mb-2 px-1">
-              从「{{ importFileName }}」中解析到 {{ parsedImportData.themes.length }} 个主题
+          <!-- File import tab -->
+          <div v-if="importTab === 'file'" class="space-y-3">
+            <div v-if="!parsedImportData">
+              <button
+                @click="triggerFileSelect"
+                class="w-full border-2 border-dashed border-border rounded-xl py-10 flex flex-col items-center gap-3 hover:border-primary/40 hover:bg-primary/5 transition-all cursor-pointer"
+              >
+                <svg class="w-10 h-10 text-content-tertiary/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <span class="text-sm text-content-tertiary">点击选择 JSON 主题文件</span>
+              </button>
+              <input ref="fileInput" type="file" accept=".json" @change="handleFileSelected" class="hidden" />
+              <p v-if="importError" class="text-xs text-red-500 text-center mt-2">{{ importError }}</p>
             </div>
-            <label
-              v-for="(theme, idx) in importedThemes"
-              :key="theme.importId"
-              class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-surface-tertiary cursor-pointer transition-colors"
-            >
-              <input
-                type="checkbox"
-                :checked="selectedImports.has(idx)"
-                @change="toggleImport(idx)"
-                class="w-4 h-4 rounded border-border text-primary focus:ring-primary/50 accent-indigo-500"
-              />
+            <div v-else class="space-y-1">
+              <div class="text-xs text-content-tertiary mb-2 px-1">
+                从「{{ importFileName }}」中解析到 {{ parsedImportData.themes.length }} 个主题
+              </div>
+              <label
+                v-for="(theme, idx) in importedThemes"
+                :key="theme.importId"
+                class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-surface-tertiary cursor-pointer transition-colors"
+              >
+                <input
+                  type="checkbox"
+                  :checked="selectedImports.has(idx)"
+                  @change="toggleImport(idx)"
+                  class="w-4 h-4 rounded border-border text-primary focus:ring-primary/50 accent-indigo-500"
+                />
+                <span
+                  class="w-6 h-6 rounded-full border border-black/10 flex-shrink-0"
+                  :style="{ backgroundColor: theme.color }"
+                ></span>
+                <div class="flex-1 min-w-0">
+                  <span class="text-sm text-content">{{ theme.name }}</span>
+                  <span v-if="theme.hasConflict" class="ml-2 text-xs text-amber-500">已存在同名主题</span>
+                </div>
+              </label>
+            </div>
+          </div>
+          <!-- Paste import tab -->
+          <div v-else class="space-y-3">
+            <textarea
+              v-model="pasteJsonText"
+              class="input-field font-mono text-xs h-44 resize-none"
+              placeholder="在此粘贴主题 JSON 字符串...&#10;&#10;支持以下格式：&#10;• 完整的导出文件（包含 themes 数组）&#10;• 单个主题对象 { name, css_variables }&#10;• 仅颜色变量 { &quot;--color-body&quot;: &quot;...&quot;, ... }"
+            ></textarea>
+            <p v-if="pasteError" class="text-xs text-red-500">{{ pasteError }}</p>
+            <div v-if="pastePreview" class="flex items-center gap-3 p-3 rounded-lg bg-surface-secondary">
               <span
-                class="w-6 h-6 rounded-full border border-black/10 flex-shrink-0"
-                :style="{ backgroundColor: theme.color }"
+                class="w-8 h-8 rounded-full border border-black/10 flex-shrink-0"
+                :style="{ backgroundColor: pastePreview.color }"
               ></span>
               <div class="flex-1 min-w-0">
-                <span class="text-sm text-content">{{ theme.name }}</span>
-                <span v-if="theme.hasConflict" class="ml-2 text-xs text-amber-500">已存在同名主题</span>
+                <p class="text-sm font-medium text-content">{{ pastePreview.name }}</p>
+                <p class="text-xs text-content-tertiary">已解析，点击导入将保存为自定义主题</p>
               </div>
-            </label>
+            </div>
           </div>
         </div>
-        <div v-if="parsedImportData" class="px-6 py-4 border-t border-border flex justify-between items-center flex-shrink-0">
-          <span class="text-xs text-content-tertiary">已选择 {{ selectedImports.size }} 个主题</span>
+        <div class="px-6 py-4 border-t border-border flex justify-between items-center flex-shrink-0">
+          <span v-if="importTab === 'file' && parsedImportData" class="text-xs text-content-tertiary">已选择 {{ selectedImports.size }} 个主题</span>
+          <span v-else class="text-xs text-content-tertiary">&nbsp;</span>
           <div class="flex gap-3">
             <button @click="closeImportModal" class="btn-secondary">取消</button>
             <button
+              v-if="importTab === 'file'"
               @click="doImport"
               class="btn-primary"
-              :disabled="selectedImports.size === 0"
+              :disabled="!parsedImportData || selectedImports.size === 0"
+            >
+              导入
+            </button>
+            <button
+              v-else
+              @click="doPasteImport"
+              class="btn-primary"
+              :disabled="!pastePreview"
             >
               导入
             </button>
@@ -647,6 +720,10 @@ const importFileName = ref('')
 const importError = ref('')
 const fileInput = ref(null)
 const importIdBase = ref(Date.now())
+const importTab = ref('file')
+const pasteJsonText = ref('')
+const pasteError = ref('')
+const copiedThemeId = ref('')
 
 const exportableThemes = computed(() => {
   const presets = store.themes.map(t => ({
@@ -704,6 +781,81 @@ const importedThemes = computed(() => {
   })
 })
 
+// ── Parse flexible theme JSON ────────────────────────────────
+function parseThemeJson(text) {
+  const trimmed = text.trim()
+  if (!trimmed) return null
+  const data = JSON.parse(trimmed)
+  // Full export file with themes array
+  if (data.themes && Array.isArray(data.themes) && data.themes.length > 0) {
+    return data.themes.map(t => ({
+      name: t.name || '未命名主题',
+      css_variables: typeof t.css_variables === 'string' ? t.css_variables : JSON.stringify(t.css_variables || {}),
+    }))
+  }
+  // Single theme object { name, css_variables }
+  if (data.name && data.css_variables) {
+    const vars = typeof data.css_variables === 'string' ? data.css_variables : JSON.stringify(data.css_variables)
+    return [{ name: data.name, css_variables: vars }]
+  }
+  // Raw css_variables object { "--color-body": "...", ... }
+  const keys = Object.keys(data)
+  if (keys.some(k => k.startsWith('--'))) {
+    return [{ name: '导入主题', css_variables: JSON.stringify(data) }]
+  }
+  throw new Error('无法识别的 JSON 格式')
+}
+
+const pastePreview = computed(() => {
+  const text = pasteJsonText.value.trim()
+  if (!text) return null
+  try {
+    const themes = parseThemeJson(text)
+    if (!themes || themes.length === 0) return null
+    const t = themes[0]
+    let color = '#6366f1'
+    try {
+      const vars = JSON.parse(t.css_variables)
+      if (vars['--color-primary']) {
+        const parts = vars['--color-primary'].split(/\s+/)
+        if (parts.length >= 3) {
+          const toHex = v => Math.min(255, Math.max(0, parseInt(v, 10) || 0)).toString(16).padStart(2, '0')
+          color = '#' + toHex(parts[0]) + toHex(parts[1]) + toHex(parts[2])
+        }
+      }
+    } catch { /* default */ }
+    return { name: t.name, color, css_variables: t.css_variables }
+  } catch {
+    return null
+  }
+})
+
+function copyThemeJson(themeId, themeName, isCustom) {
+  let cssVars
+  if (isCustom) {
+    const ct = store.customThemes.find(t => t.id === themeId)
+    if (!ct) return
+    cssVars = JSON.parse(ct.css_variables)
+  } else {
+    cssVars = { ...presetThemeVars[themeId] }
+  }
+  const data = { name: themeName, css_variables: cssVars }
+  const json = JSON.stringify(data, null, 2)
+  navigator.clipboard.writeText(json).then(() => {
+    copiedThemeId.value = isCustom ? `custom_${themeId}` : themeId
+    setTimeout(() => { copiedThemeId.value = '' }, 2000)
+  })
+}
+
+async function doPasteImport() {
+  const preview = pastePreview.value
+  if (!preview) return
+  await store.saveCustomTheme({ id: null, name: preview.name, css_variables: preview.css_variables })
+  await store.loadCustomThemes()
+  pasteJsonText.value = ''
+  showImportModal.value = false
+}
+
 function toggleExport(key) {
   const s = new Set(selectedExports.value)
   if (s.has(key)) s.delete(key); else s.add(key)
@@ -753,6 +905,9 @@ function openImport() {
   importFileName.value = ''
   importError.value = ''
   importIdBase.value = Date.now()
+  importTab.value = 'file'
+  pasteJsonText.value = ''
+  pasteError.value = ''
   showImportModal.value = true
 }
 
@@ -770,13 +925,13 @@ async function handleFileSelected(event) {
   importError.value = ''
   try {
     const text = await file.text()
-    const data = JSON.parse(text)
-    if (!data.themes || !Array.isArray(data.themes) || data.themes.length === 0) {
+    const themes = parseThemeJson(text)
+    if (!themes || themes.length === 0) {
       importError.value = '文件格式错误：未找到主题数据'
       return
     }
-    parsedImportData.value = data
-    selectedImports.value = new Set(data.themes.map((_, i) => i))
+    parsedImportData.value = { themes }
+    selectedImports.value = new Set(themes.map((_, i) => i))
   } catch (e) {
     importError.value = '文件解析失败：' + (e.message || '无效的 JSON 文件')
   }
@@ -803,6 +958,8 @@ async function doImport() {
 function closeImportModal() {
   showImportModal.value = false
   parsedImportData.value = null
+  pasteJsonText.value = ''
+  pasteError.value = ''
 }
 
 onMounted(() => {
