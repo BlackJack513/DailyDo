@@ -108,7 +108,7 @@
           class="absolute bottom-full left-0 right-0 mb-1 bg-surface border border-border rounded-xl shadow-lg z-50 max-h-[300px] overflow-y-auto"
         >
           <button
-            v-for="t in store.themes.filter(t => store.isFavorite(t.id))"
+            v-for="t in store.allThemes.filter(t => store.isFavorite(t.id))"
             :key="t.id"
             @click="selectTheme(t.id)"
             class="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-surface-tertiary transition-colors"
@@ -156,12 +156,12 @@ const showConfigModal = ref(false)
 const showThemeDropdown = ref(false)
 
 const currentThemeName = computed(() => {
-  const t = store.themes.find(t => t.id === store.theme)
+  const t = store.allThemes.find(t => t.id === store.theme)
   return t ? t.name : '主题'
 })
 
 const currentThemeColor = computed(() => {
-  const t = store.themes.find(t => t.id === store.theme)
+  const t = store.allThemes.find(t => t.id === store.theme)
   return t ? t.color : '#6366f1'
 })
 
@@ -378,6 +378,19 @@ const RestReminderIcon = {
   },
 }
 
+const ThemesIcon = {
+  render() {
+    return h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
+      h('path', {
+        'stroke-linecap': 'round',
+        'stroke-linejoin': 'round',
+        'stroke-width': '2',
+        d: 'M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01',
+      }),
+    ])
+  },
+}
+
 const allNavItems = {
   today: { path: '/today', label: '待办列表', icon: TodayIcon, id: 'today' },
   list: { path: '/list', label: '全部待办', icon: ListIcon, id: 'list' },
@@ -393,6 +406,7 @@ const allNavItems = {
   restReminder: { path: '/rest-reminder', label: '休息提醒', icon: RestReminderIcon, id: 'restReminder' },
   customFields: { path: '/custom-fields', label: '自定义字段', icon: CustomFieldsIcon, id: 'customFields' },
   trash: { path: '/trash', label: '回收站', icon: TrashIcon, id: 'trash', badge: store.overviewStats.trash_count },
+  themes: { path: '/themes', label: '主题管理', icon: ThemesIcon, id: 'themes' },
   settings: { path: '/settings', label: '设置', icon: SettingsIcon, id: 'settings' },
 }
 

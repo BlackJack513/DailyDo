@@ -150,6 +150,11 @@ fn main() {
             commands::set_custom_field_values,
             // Filtered todos command
             commands::get_filtered_todos,
+            // Custom theme commands
+            commands::get_all_custom_themes,
+            commands::create_custom_theme,
+            commands::update_custom_theme,
+            commands::delete_custom_theme,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

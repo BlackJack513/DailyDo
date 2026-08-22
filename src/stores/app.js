@@ -72,6 +72,9 @@ export const useAppStore = defineStore('app', () => {
     lastRestReminderAt.value = Date.now()
   }
 
+  // ─── 自定义主题（Custom Themes）────────────────────────────
+  const customThemes = ref([])
+
   // ─── 侧边栏配置（Sidebar）────────────────────────────────
   // 分组结构：每个 group 包含 { id, label, items: [{ id, visible }] }
   // 设计意图：支持用户自定义侧边栏模块的显示/隐藏和分组排列
@@ -112,6 +115,7 @@ export const useAppStore = defineStore('app', () => {
         { id: 'attachments', visible: true },
         { id: 'customFields', visible: true },
         { id: 'trash', visible: true },
+        { id: 'themes', visible: true },
         { id: 'settings', visible: true },
       ],
     },
@@ -156,28 +160,9 @@ export const useAppStore = defineStore('app', () => {
   const themes = [
     { id: 'light', name: '默认浅色', color: '#6366f1' },
     { id: 'dark', name: '默认深色', color: '#818cf8' },
-    { id: 'forest', name: '翠影', color: '#16a34a' },
-    { id: 'twilight', name: '紫韵', color: '#9333ea' },
-    { id: 'blossom', name: '粉黛', color: '#ec4899' },
-    { id: 'ink', name: '墨染', color: '#52AAB6' },
-    { id: 'dawn', name: '晨曦', color: '#E88C26' },
-    { id: 'seafoam', name: '海雾', color: '#4882AA' },
-    { id: 'bamboo', name: '竹影', color: '#628C4E' },
-    { id: 'starry', name: '星夜', color: '#9B87EB' },
-    { id: 'coffee', name: '咖啡时光', color: '#A56937' },
-    { id: 'sunny', name: '暖阳', color: '#F59E0B' },
     { id: 'ocean', name: '海洋', color: '#0EA5E9' },
-    { id: 'coral', name: '珊瑚', color: '#FB7150' },
-    { id: 'mint', name: '薄荷', color: '#14B882' },
     { id: 'claude', name: 'Claude', color: '#C15F3C' },
-    { id: 'rainblue', name: '天青', color: '#378287' },
-    { id: 'moonwhite', name: '月白', color: '#506987' },
-    { id: 'cinnabar', name: '朱砂', color: '#AF2D23' },
-    { id: 'indigo', name: '黛蓝', color: '#8296C8' },
-    { id: 'mist', name: '暮霭', color: '#D7824B' },
     { id: 'frost', name: '霜降', color: '#4682C3' },
-    { id: 'aurora', name: '极光', color: '#5AC878' },
-    { id: 'monsoon', name: '雨季', color: '#3A6E4B' },
   ]
 
   /**
@@ -185,7 +170,7 @@ export const useAppStore = defineStore('app', () => {
    * 以便 Tailwind CSS 的 dark: 变体生效。
    * 新增深色主题时必须同步更新此数组。
    */
-  const darkThemes = ['dark', 'ink', 'starry', 'indigo', 'aurora']
+  const darkThemes = ['dark']
 
   /**
    * 收藏主题列表 —— 仅这些主题显示在侧边栏的快速切换下拉中。
@@ -210,6 +195,87 @@ export const useAppStore = defineStore('app', () => {
     await db.setSetting('favorite_themes', JSON.stringify(favoriteThemes.value))
   }
 
+  /**
+   * 合并内置主题与用户自定义主题 —— 供侧边栏下拉、设置页等统一使用。
+   * 自定义主题的 id 格式为 'custom_{dbId}'，color 从 css_variables 中提取主色。
+   */
+  const allThemes = computed(() => {
+    const custom = customThemes.value.map(t => {
+      let color = '#6366f1'
+      try {
+        const vars = JSON.parse(t.css_variables || '{}')
+        if (vars['--color-primary']) {
+          const parts = vars['--color-primary'].split(/\s+/)
+          if (parts.length >= 3) {
+            const toHex = v => Math.min(255, Math.max(0, parseInt(v, 10) || 0)).toString(16).padStart(2, '0')
+            color = '#' + toHex(parts[0]) + toHex(parts[1]) + toHex(parts[2])
+          }
+        }
+      } catch { /* use default */ }
+      return { id: `custom_${t.id}`, name: t.name, color, isCustom: true, dbId: t.id }
+    })
+    return [...themes, ...custom]
+  })
+
+  function isCustomThemeId(id) {
+    return typeof id === 'string' && id.startsWith('custom_')
+  }
+
+  async function loadCustomThemes() {
+    try {
+      customThemes.value = await db.getAllCustomThemes()
+    } catch (e) {
+      console.error('Failed to load custom themes:', e)
+    }
+  }
+
+  /**
+   * 将自定义主题的 CSS 变量注入为 <style> 标签。
+   * 通过 [data-theme='custom_N'] 选择器覆盖 :root 的默认变量值。
+   */
+  function applyCustomTheme(themeId) {
+    const dbId = parseInt(themeId.replace('custom_', ''), 10)
+    const t = customThemes.value.find(ct => ct.id === dbId)
+    if (!t) return
+    let vars
+    try { vars = JSON.parse(t.css_variables || '{}') } catch { vars = {} }
+    const cssLines = Object.entries(vars).map(([k, v]) => `  ${k}: ${v};`).join('\n')
+    const css = `[data-theme='${themeId}'] {\n${cssLines}\n}`
+    let el = document.getElementById('custom-theme-style')
+    if (!el) {
+      el = document.createElement('style')
+      el.id = 'custom-theme-style'
+      document.head.appendChild(el)
+    }
+    el.textContent = css
+  }
+
+  function removeCustomStyle() {
+    const el = document.getElementById('custom-theme-style')
+    if (el) el.remove()
+  }
+
+  async function saveCustomTheme(theme) {
+    if (theme.id) {
+      await db.updateCustomTheme(theme)
+    } else {
+      await db.createCustomTheme(theme)
+    }
+    await loadCustomThemes()
+  }
+
+  async function removeCustomTheme(id) {
+    const themeId = `custom_${id}`
+    if (theme.value === themeId) {
+      theme.value = 'light'
+      removeCustomStyle()
+      applyTheme()
+      await db.setSetting('theme', 'light')
+    }
+    await db.deleteCustomTheme(id)
+    await loadCustomThemes()
+  }
+
   // ═══════════════════════════════════════════════════════════
   // 主题操作（Theme Operations）
   // ═══════════════════════════════════════════════════════════
@@ -220,12 +286,19 @@ export const useAppStore = defineStore('app', () => {
    * 注意：此函数直接操作 DOM，不依赖 Vue 响应式。
    */
   function applyTheme() {
-    const isDarkTheme = darkThemes.includes(theme.value)
-    document.documentElement.setAttribute('data-theme', theme.value)
-    if (isDarkTheme) {
-      document.documentElement.classList.add('dark')
-    } else {
+    if (isCustomThemeId(theme.value)) {
+      applyCustomTheme(theme.value)
+      document.documentElement.setAttribute('data-theme', theme.value)
       document.documentElement.classList.remove('dark')
+    } else {
+      removeCustomStyle()
+      const isDarkTheme = darkThemes.includes(theme.value)
+      document.documentElement.setAttribute('data-theme', theme.value)
+      if (isDarkTheme) {
+        document.documentElement.classList.add('dark')
+      } else {
+        document.documentElement.classList.remove('dark')
+      }
     }
   }
 
@@ -308,6 +381,13 @@ export const useAppStore = defineStore('app', () => {
         }
       }
     } catch { /* use default */ }
+
+    // Load custom themes (must be before applyTheme so custom themes are available)
+    try {
+      await loadCustomThemes()
+    } catch (e) {
+      console.error('Failed to load custom themes:', e)
+    }
 
     settingsLoaded.value = true
   }
@@ -400,6 +480,16 @@ export const useAppStore = defineStore('app', () => {
                 if (g.id === 'time_tools') {
                   if (!g.items.find(i => i.id === 'restReminder')) {
                     g.items.push({ id: 'restReminder', visible: true })
+                    migrated = true
+                  }
+                }
+              }
+              // Migrate: ensure 'themes' exists in system group
+              for (const g of parsed) {
+                if (g.id === 'system') {
+                  if (!g.items.find(i => i.id === 'themes')) {
+                    const settingsIdx = g.items.findIndex(i => i.id === 'settings')
+                    g.items.splice(settingsIdx >= 0 ? settingsIdx : g.items.length, 0, { id: 'themes', visible: true })
                     migrated = true
                   }
                 }
@@ -1178,6 +1268,11 @@ export const useAppStore = defineStore('app', () => {
     favoriteThemes,
     isFavorite,
     toggleFavorite,
+    customThemes,
+    allThemes,
+    loadCustomThemes,
+    saveCustomTheme,
+    removeCustomTheme,
     tags,
     currentTodos,
     currentDate,

@@ -147,6 +147,13 @@ pub fn init_db(conn: &Connection) -> Result<()> {
             FOREIGN KEY (todo_id) REFERENCES todos(id) ON DELETE CASCADE
         );
 
+        CREATE TABLE IF NOT EXISTS custom_themes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            css_variables TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL
+        );
+
         CREATE INDEX IF NOT EXISTS idx_todos_todo_date ON todos(todo_date);
         CREATE INDEX IF NOT EXISTS idx_todos_status ON todos(status);
         CREATE INDEX IF NOT EXISTS idx_todos_deleted ON todos(deleted_at);

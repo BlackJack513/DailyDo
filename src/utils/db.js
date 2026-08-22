@@ -288,3 +288,17 @@ export async function setCustomFieldValues(todoId, values) {
 export async function getFilteredTodos(filter) {
   return await invoke('get_filtered_todos', { filter })
 }
+
+// Custom themes
+export async function getAllCustomThemes() {
+  return await invoke('get_all_custom_themes')
+}
+export async function createCustomTheme(theme) {
+  return await invoke('create_custom_theme', { theme })
+}
+export async function updateCustomTheme(theme) {
+  return await invoke('update_custom_theme', { theme })
+}
+export async function deleteCustomTheme(id) {
+  return await invoke('delete_custom_theme', { id })
+}

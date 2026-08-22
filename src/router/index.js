@@ -17,6 +17,7 @@ const routes = [
   { path: '/rest-reminder', name: 'rest-reminder', component: () => import('../views/RestReminderView.vue') },
   { path: '/trash', name: 'trash', component: () => import('../views/TrashView.vue') },
   { path: '/custom-fields', name: 'custom-fields', component: () => import('../views/CustomFieldsView.vue') },
+  { path: '/themes', name: 'themes', component: () => import('../views/ThemesView.vue') },
   { path: '/settings', name: 'settings', component: () => import('../views/SettingsView.vue') },
 ]
 

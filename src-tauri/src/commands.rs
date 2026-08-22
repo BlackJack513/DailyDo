@@ -37,6 +37,14 @@ pub struct Tag {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct CustomTheme {
+    pub id: Option<i64>,
+    pub name: String,
+    pub css_variables: String,
+    pub created_at: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct DailyCount {
     pub date: String,
     pub total: i32,
@@ -2400,4 +2408,68 @@ pub fn get_filtered_todos(
         .collect();
 
     Ok(todos)
+}
+
+// ─── Custom Theme Commands ────────────────────────────────────
+
+#[tauri::command]
+pub fn get_all_custom_themes(state: State<AppState>) -> Result<Vec<CustomTheme>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let mut stmt = db
+        .prepare("SELECT id, name, css_variables, created_at FROM custom_themes ORDER BY name")
+        .map_err(|e| e.to_string())?;
+
+    let themes = stmt
+        .query_map([], |row| {
+            Ok(CustomTheme {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                css_variables: row.get(2)?,
+                created_at: row.get(3)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(themes)
+}
+
+#[tauri::command]
+pub fn create_custom_theme(state: State<AppState>, theme: CustomTheme) -> Result<CustomTheme, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let now = now_string();
+
+    db.execute(
+        "INSERT INTO custom_themes (name, css_variables, created_at) VALUES (?1, ?2, ?3)",
+        params![theme.name, theme.css_variables, &now],
+    )
+    .map_err(|e| e.to_string())?;
+
+    let id = db.last_insert_rowid();
+    Ok(CustomTheme {
+        id: Some(id),
+        name: theme.name,
+        css_variables: theme.css_variables,
+        created_at: Some(now),
+    })
+}
+
+#[tauri::command]
+pub fn update_custom_theme(state: State<AppState>, theme: CustomTheme) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.execute(
+        "UPDATE custom_themes SET name=?1, css_variables=?2 WHERE id=?3",
+        params![theme.name, theme.css_variables, theme.id],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn delete_custom_theme(state: State<AppState>, id: i64) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.execute("DELETE FROM custom_themes WHERE id=?1", params![id])
+        .map_err(|e| e.to_string())?;
+    Ok(())
 }
