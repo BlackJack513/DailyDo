@@ -1000,6 +1000,9 @@ export const useAppStore = defineStore('app', () => {
         const existingTodos = await db.getTodosByDate(dateStr)
         for (const gid of Object.keys(workdayGroups)) {
           const template = workdayGroups[gid]
+          // Load tags and steps from template (raw DB rows don't have these)
+          template.tags = await db.getTodoTags(template.id)
+          template.steps = await db.getStepsByTodoId(template.id)
           const alreadyExists = existingTodos.some(
             t => (t.recurrence_group_id === gid || `single_${t.id}` === gid) && t.deleted_at == null,
           )
